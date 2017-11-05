@@ -16,11 +16,12 @@ def main():
 
     # Load data
     polls = pd.read_csv('data/all_polls_2016.csv', parse_dates=['begin', 'end', 'poll_date'])
-    up_to_t = dt.date(2016, 11, 8)
+    up_to_t = dt.date(2016, 10, 8)
     state_polls, national_polls = prepare_polls(polls, up_to_t)
 
     # Get prior information from 2012 election
     prior_diff_score, state_weights, ev_states = process_2012_polls()
+    prior_diff_score = prior_diff_score[state_polls.state.unique()]
 
     n_states = len(state_polls.state.unique())
     n_pollsters = len(polls.pollster.unique())
@@ -117,7 +118,7 @@ def main():
 
     # Inference
     sigmas = [sigma_a, sigma_b, sigma_c, sigma_samp_e_state]
-    others = [e, mu_c, samp_e_state]
+    others = [mu_c, samp_e_state]
     latent_variables = mu_bs + mu_as + sigmas + others
     # Feeding a list does 10000 iter by default
     n_respondents = state_polls.n_respondents.as_matrix()
@@ -132,16 +133,18 @@ def main():
 
         # if t % inference.n_print == 0:
         #     print(inference.latent_vars[latent_variables[-1]].sample().eval())
-    election_day = inference.latent_vars[latent_variables[0]].params.eval()
+    week = 5
+    election_day = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     election_day = election_day[1000:]
-    np.mean(election_day, axis=0)
+    print(np.mean(election_day, axis=0))
+    print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
 
     latents=list(inference.latent_vars.keys())
     vari = inference.latent_vars[latents[-4]].params.eval()
     vari = vari[1000:]
-    vari = np.unique(vari)
+    # vari = np.unique(vari)
 
     house_effects = inference.latent_vars[latent_variables[-2]].params.eval()
     house_effects = house_effects[1000:]

@@ -73,7 +73,7 @@ def get_polls(end_date):
     )
 
     polls = []
-    two_words = ['west', 'north', 'south', 'new']
+    two_words = ['west', 'north', 'south', 'new', 'rhode']
     for item in charts.items:
 
         if item.slug == '2016-general-election-trump-vs-clinton-vs-johnson':
