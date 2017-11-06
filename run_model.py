@@ -133,7 +133,7 @@ def main():
 
         # if t % inference.n_print == 0:
         #     print(inference.latent_vars[latent_variables[-1]].sample().eval())
-    week = 32
+    week = 0
     election_day = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     election_day = election_day[1000:]
@@ -141,8 +141,15 @@ def main():
     print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
 
+    week = 32
+    first_week = inference.latent_vars[latent_variables[week]].params.eval()
+    # Burn in
+    first_week = first_week[1000:]
+    print(np.mean(first_week, axis=0))
+    print(np.std(first_week, axis=0))
+
     latents = list(inference.latent_vars.keys())
-    vari = inference.latent_vars[latents[-5]].params.eval()
+    vari = inference.latent_vars[latents[-1]].params.eval()
     vari = vari[1000:]
     np.mean(vari)
     # vari = np.unique(vari)
