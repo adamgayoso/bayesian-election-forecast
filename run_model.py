@@ -56,14 +56,14 @@ def main():
     # BACKWARD COMPONENT
     # Backward priors - from t_last to first day of polling
     # Latent State vote intention
-    sigma_b = InverseGamma(4.0, 0.002)
+    sigma_b = 0.01 * tf.sqrt(tf.exp(tf.Variable(tf.random_normal([]))))
     # sigma_b = Exponential(rate=1.0)
     # constrained_sigma_b = 0.05 * tf.exp(-sigma_b) * np.sqrt(7)
     for w in range(w_last):
-        mu_bs.append(Normal(loc=mu_bs[-1], scale=tf.sqrt(sigma_b) * np.sqrt(7) * tf.ones(n_states)))
+        mu_bs.append(Normal(loc=mu_bs[-1], scale=sigma_b * np.sqrt(7) * tf.ones(n_states)))
 
     # Latent national component
-    sigma_a = InverseGamma(4.0, 0.002)
+    sigma_a = 0.1 * tf.sqrt(tf.exp(tf.Variable(tf.random_normal([]))))
     # sigma_a = Exponential(rate=1.0)
     # constrained_sigma_a = 0.05 * tf.exp(-sigma_a)
 
@@ -75,9 +75,9 @@ def main():
     mu_as = []
     for t in range(last_tuesday):
         if t == 0:
-            mu_as.append(Normal(loc=0.0, scale=tf.sqrt(sigma_a)))
+            mu_as.append(Normal(loc=0.0, scale=sigma_a))
         else:
-            mu_as.append(Normal(loc=mu_as[-1], scale=tf.sqrt(sigma_a)))
+            mu_as.append(Normal(loc=mu_as[-1], scale=sigma_a))
 
     # Pollster house effect
     # sigma_c = InverseGamma(2.0, 0.04)
@@ -117,14 +117,14 @@ def main():
     y = Binomial(total_count=X, logits=log_lin)#, value=tf.zeros(len(state_polls), dtype=tf.float32))
 
     # Inference
-    sigmas = [sigma_a, sigma_b]#, sigma_samp_e_state]
+    # sigmas = [sigma_a, sigma_b]#, sigma_samp_e_state]
     # others = [samp_e_state]
-    latent_variables = mu_bs + mu_as + sigmas# + others
+    latent_variables = mu_bs + mu_as# + others
     # Feeding a list does 10000 iter by default
     n_respondents = state_polls.n_respondents.as_matrix()
     n_clinton = state_polls.n_clinton.as_matrix()
     inference = ed.HMC(latent_variables, data={X: n_respondents, y: n_clinton})
-    inference.initialize(n_print=10, step_size=0.0008, n_steps=2)
+    inference.initialize(n_print=10, step_size=0.0028, n_steps=2)
 
     tf.global_variables_initializer().run()
     for t in range(inference.n_iter):
@@ -141,7 +141,7 @@ def main():
     print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
 
-    week = 31
+    week = 32
     first_week = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     first_week = first_week[1000:]
@@ -158,7 +158,7 @@ def main():
     house_effects = house_effects[1000:]
     np.mean(house_effects, axis=0)
 
-    mu_a = inference.latent_vars[latent_variables[-3]].params.eval()
+    mu_a = inference.latent_vars[latent_variables[-1]].params.eval()
     mu_a = mu_a[1000:]
     np.mean(mu_a, axis=0)
 
