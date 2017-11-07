@@ -81,21 +81,21 @@ def main():
 
     # Pollster house effect
     # sigma_c = InverseGamma(2.0, 0.04)
-    sigma_c = Exponential(rate=1.0)
-    constrained_sigma_c = 0.1 * tf.exp(-sigma_c)
-    mu_c = Normal(loc=tf.zeros(n_pollsters), scale=constrained_sigma_c * tf.ones(n_pollsters))
+    # sigma_c = Exponential(rate=1.0)
+    # constrained_sigma_c = 0.1 * tf.exp(-sigma_c)
+    # mu_c = Normal(loc=tf.zeros(n_pollsters), scale=constrained_sigma_c * tf.ones(n_pollsters))
 
     # # # Sampling error
     # sigma_samp_e_state = InverseGamma(2.0, 0.04)
-    sigma_samp_e_state = Exponential(rate=1.0)
-    constrained_same_e_state =0.1 * tf.exp(-sigma_samp_e_state)
-    # sigma_samp_e_nat = Uniform(low=0.0, high=0.1)
-    samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=constrained_same_e_state * tf.ones(len(state_polls)))
+    # sigma_samp_e_state = Exponential(rate=1.0)
+    # constrained_same_e_state =0.1 * tf.exp(-sigma_samp_e_state)
+    # # sigma_samp_e_nat = Uniform(low=0.0, high=0.1)
+    # samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=constrained_same_e_state * tf.ones(len(state_polls)))
 
     # State polling error
-    sigma_poll_error = 0.00112 * np.ones((n_states, n_states)) + ((0.0016) - 0.00112) * np.identity(n_states)
-    sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
-    e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
+    # sigma_poll_error = 0.00112 * np.ones((n_states, n_states)) + ((0.0016) - 0.00112) * np.identity(n_states)
+    # sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
+    # e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
 
     # Binomial logits using tf gather to get the right values.
     mu_b_tf = tf.stack(mu_bs)
@@ -108,18 +108,18 @@ def main():
     ind[:, 0] = E_week - ind[:,0]
 
     mu_b_log = tf.gather_nd(mu_b_tf, ind)
-    mu_c_log = tf.gather(mu_c, state_polls.pollster_index)
-    e_log = tf.gather(e, state_polls.state_index)
+    # mu_c_log = tf.gather(mu_c, state_polls.pollster_index)
+    # e_log = tf.gather(e, state_polls.state_index)
 
-    log_lin = mu_b_log + mu_a_log + mu_c_log + e_log + samp_e_state
+    log_lin = mu_b_log + mu_a_log #+ mu_c_log + e_log + samp_e_state
     Binomial._sample_n = _sample_n
     X = tf.placeholder(tf.float32, len(state_polls))
     y = Binomial(total_count=X, logits=log_lin)#, value=tf.zeros(len(state_polls), dtype=tf.float32))
 
     # Inference
-    sigmas = [sigma_a, sigma_b, sigma_c, sigma_samp_e_state]
-    others = [e, mu_c, samp_e_state]
-    latent_variables = mu_bs + mu_as + sigmas + others
+    sigmas = [sigma_a, sigma_b]#, sigma_c, sigma_samp_e_state]
+    # others = [e, mu_c, samp_e_state]
+    latent_variables = mu_bs + mu_as + sigmas# + others
     # Feeding a list does 10000 iter by default
     n_respondents = state_polls.n_respondents.as_matrix()
     n_clinton = state_polls.n_clinton.as_matrix()
@@ -140,6 +140,13 @@ def main():
     print(np.mean(election_day, axis=0))
     print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
+
+    week = 32
+    first_week = inference.latent_vars[latent_variables[week]].params.eval()
+    # Burn in
+    first_week = first_week[1000:]
+    print(np.mean(first_week, axis=0))
+    print(np.std(first_week, axis=0))
 
     latents = list(inference.latent_vars.keys())
     vari = inference.latent_vars[latents[-5]].params.eval()
