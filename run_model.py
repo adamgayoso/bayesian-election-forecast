@@ -56,14 +56,14 @@ def main():
     # BACKWARD COMPONENT
     # Backward priors - from t_last to first day of polling
     # Latent State vote intention
-    sigma_b = InverseGamma(4.0, 0.1)
+    sigma_b = InverseGamma(4.0, 0.002)
     # sigma_b = Exponential(rate=1.0)
     # constrained_sigma_b = 0.05 * tf.exp(-sigma_b) * np.sqrt(7)
     for w in range(w_last):
-        mu_bs.append(Normal(loc=mu_bs[-1], scale=sigma_b * np.sqrt(7) * tf.ones(n_states)))
+        mu_bs.append(Normal(loc=mu_bs[-1], scale=tf.sqrt(sigma_b) * np.sqrt(7) * tf.ones(n_states)))
 
     # Latent national component
-    sigma_a = InverseGamma(4.0, 0.1)
+    sigma_a = InverseGamma(4.0, 0.002)
     # sigma_a = Exponential(rate=1.0)
     # constrained_sigma_a = 0.05 * tf.exp(-sigma_a)
 
@@ -75,9 +75,9 @@ def main():
     mu_as = []
     for t in range(last_tuesday):
         if t == 0:
-            mu_as.append(Normal(loc=0.0, scale=sigma_a))
+            mu_as.append(Normal(loc=0.0, scale=tf.sqrt(sigma_a)))
         else:
-            mu_as.append(Normal(loc=mu_as[-1], scale=sigma_a))
+            mu_as.append(Normal(loc=mu_as[-1], scale=tf.sqrt(sigma_a)))
 
     # Pollster house effect
     # sigma_c = InverseGamma(2.0, 0.04)
@@ -141,7 +141,7 @@ def main():
     print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
 
-    week = 32
+    week = 31
     first_week = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     first_week = first_week[1000:]
@@ -158,8 +158,8 @@ def main():
     house_effects = house_effects[1000:]
     np.mean(house_effects, axis=0)
 
-    mu_a = inference.latent_vars[latent_variables[35]].params.eval()
+    mu_a = inference.latent_vars[latent_variables[-3]].params.eval()
     mu_a = mu_a[1000:]
-    np.mean(mu_a)
+    np.mean(mu_a, axis=0)
 
 
