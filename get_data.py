@@ -43,7 +43,7 @@ def filter_polls(all_polls, end_date, undecided=False):
 
     cols = ['state', 'begin', 'end', 'poll_time', 'poll_date', 'week', 'day_of_week',
             'pollster', 'mode', 'population', 'observations',
-            'clinton', 'trump', 'both', 'other']
+            'clinton', 'trump', 'both', 'other', 'undecided']
 
     clean_polls = clean_polls.loc[rows, cols]
     clean_polls['p_clinton'] = clean_polls.clinton / clean_polls.both

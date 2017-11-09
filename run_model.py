@@ -124,7 +124,7 @@ def main():
     n_respondents = state_polls.n_respondents.as_matrix()
     n_clinton = state_polls.n_clinton.as_matrix()
     inference = ed.HMC(latent_variables, data={X: n_respondents, y: n_clinton})
-    inference.initialize(n_print=100, step_size=0.006, n_steps=2)
+    inference.initialize(n_print=500, step_size=0.004, n_steps=2)
 
     tf.global_variables_initializer().run()
     for t in range(inference.n_iter):
