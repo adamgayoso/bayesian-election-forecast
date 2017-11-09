@@ -90,7 +90,7 @@ def main():
     # sigma_samp_e_state = Exponential(rate=1.0)
     # constrained_same_e_state =0.1 * tf.exp(-sigma_samp_e_state)
     # sigma_samp_e_nat = Uniform(low=0.0, high=0.1)
-    # samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=sigma_samp_e_state * tf.ones(len(state_polls)))
+    samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=0.1)
 
     # State polling error
     # sigma_poll_error = 0.00112 * np.ones((n_states, n_states)) + ((0.0016) - 0.00112) * np.identity(n_states)
@@ -111,7 +111,7 @@ def main():
     # mu_c_log = tf.gather(mu_c, state_polls.pollster_index)
     # e_log = tf.gather(e, state_polls.state_index)
 
-    log_lin = mu_b_log + mu_a_log# + e_log + samp_e_state # + mu_c_log
+    log_lin = mu_b_log + mu_a_log + samp_e_state # + mu_c_log
     Binomial._sample_n = _sample_n
     X = tf.placeholder(tf.float32, len(state_polls))
     y = Binomial(total_count=X, logits=log_lin)#, value=tf.zeros(len(state_polls), dtype=tf.float32))
@@ -124,15 +124,17 @@ def main():
     n_respondents = state_polls.n_respondents.as_matrix()
     n_clinton = state_polls.n_clinton.as_matrix()
     inference = ed.HMC(latent_variables, data={X: n_respondents, y: n_clinton})
-    inference.initialize(n_print=10, step_size=0.0028, n_steps=2)
+    inference.initialize(n_print=100, step_size=0.006, n_steps=2)
 
     tf.global_variables_initializer().run()
     for t in range(inference.n_iter):
         info_dict = inference.update()
         inference.print_progress(info_dict)
 
-        # if t % inference.n_print == 0:
-        #     print(inference.latent_vars[latent_variables[-1]].sample().eval())
+        if t % inference.n_print == 0:
+            print(inference.latent_vars[latent_variables[0]].params.eval()[t])
+            print(inference.latent_vars[latent_variables[23]].params.eval()[t])
+
     week = 0
     election_day = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
@@ -141,7 +143,7 @@ def main():
     print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
 
-    week = 32
+    week = 24
     first_week = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     first_week = first_week[1000:]
