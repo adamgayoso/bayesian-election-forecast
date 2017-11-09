@@ -2,7 +2,7 @@ import pollster
 import pandas as pd
 import datetime as dt
 
-START_DATE = dt.date(2016, 4, 1)
+START_DATE = dt.date(2016, 6, 1)
 ELECTION_DATE = dt.date(2016, 11, 8)
 end_data = ELECTION_DATE
 
