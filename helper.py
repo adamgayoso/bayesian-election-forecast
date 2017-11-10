@@ -84,7 +84,7 @@ def process_2012_polls():
                                    / (data_2012.total_count*(1+data_2012.adult_pop_growth_2011_15)).sum())
 
     prior_diff_score = data_2012.diff_score
-    state_weights = data_2012.share_national/data_2012.share_national.sum()
+    state_weights = data_2012.share_national / data_2012.share_national.sum()
     ev_states = data_2012.ev
 
     return prior_diff_score, state_weights, ev_states
