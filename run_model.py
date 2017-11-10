@@ -7,7 +7,7 @@ from scipy.special import logit
 import datetime as dt
 # import math
 from scipy.stats import binom
-from helper import _sample_n, prepare_polls, process_2012_polls
+from helper import _sample_n, prepare_polls, process_2012_polls, predict_scores
 
 ELECTION_DATE = dt.date(2016, 11, 8)
 pd.options.mode.chained_assignment = None
@@ -57,20 +57,15 @@ def main():
     # Backward priors - from t_last to first day of polling
     # Latent State vote intention
     sigma_b = 0.01 * tf.sqrt(tf.exp(tf.Variable(tf.random_normal([]))))
-    # sigma_b = Exponential(rate=1.0)
-    # constrained_sigma_b = 0.05 * tf.exp(-sigma_b) * np.sqrt(7)
     for w in range(w_last):
         mu_bs.append(Normal(loc=mu_bs[-1], scale=sigma_b * np.sqrt(7) * tf.ones(n_states)))
 
     # Latent national component
     sigma_a = 0.1 * tf.sqrt(tf.exp(tf.Variable(tf.random_normal([]))))
-    # sigma_a = Exponential(rate=1.0)
-    # constrained_sigma_a = 0.05 * tf.exp(-sigma_a)
-
-    # mu_a_base = Normal(loc=tf.zeros(last_tuesday+1), scale=0.025 * tf.ones(last_tuesday+1))
-    # mu_as = tf.cumsum(mu_a_base)
 
     # How can we vectorize this?
+    # mu_a_base = Normal(loc=tf.zeros(last_tuesday+1), scale=0.025 * tf.ones(last_tuesday+1))
+    # mu_as = tf.cumsum(mu_a_base)
     mu_a_buffer = tf.zeros(t_last - last_tuesday + 1, tf.float32)
     mu_as = []
     for t in range(last_tuesday):
@@ -80,17 +75,10 @@ def main():
             mu_as.append(Normal(loc=mu_as[-1], scale=sigma_a))
 
     # Pollster house effect
-    # sigma_c = InverseGamma(2.0, 0.04)
-    # # sigma_c = Exponential(rate=1.0)
-    # # constrained_sigma_c = 0.1 * tf.exp(-sigma_c)
     sigma_c = 0.1 * tf.sqrt(tf.exp(tf.Variable(tf.random_normal([]))))
     mu_c = Normal(loc=tf.zeros(n_pollsters), scale=sigma_c)
 
-    # # # Sampling error
-    # sigma_samp_e_state = InverseGamma(2.0, 0.04)
-    # sigma_samp_e_state = Exponential(rate=1.0)
-    # constrained_same_e_state =0.1 * tf.exp(-sigma_samp_e_state)
-    # sigma_samp_e_nat = Uniform(low=0.0, high=0.1)
+    # Sampling error
     samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=0.1)
 
     # State polling error
@@ -118,12 +106,11 @@ def main():
     y = Binomial(total_count=X, logits=log_lin + samp_e_state)#, value=tf.zeros(len(state_polls), dtype=tf.float32))
 
     # Inference
-    # sigmas = [sigma_a, sigma_b]#, sigma_samp_e_state]
     others = [mu_c]
     latent_variables = mu_bs + mu_as + others
-    # Feeding a list does 10000 iter by default
     n_respondents = state_polls.n_respondents.as_matrix()
     n_clinton = state_polls.n_clinton.as_matrix()
+    # 10,000 samples default
     inference = ed.HMC(latent_variables, data={X: n_respondents, y: n_clinton})
     inference.initialize(n_print=500, step_size=0.003, n_steps=2)
 
@@ -136,33 +123,28 @@ def main():
             print(inference.latent_vars[latent_variables[0]].params.eval()[t])
             print(inference.latent_vars[latent_variables[23]].params.eval()[t])
 
-    week = 0
-    election_day = inference.latent_vars[latent_variables[week]].params.eval()
-    # Burn in
-    election_day = election_day[4000:]
-    print(np.mean(election_day, axis=0))
-    print(np.std(election_day, axis=0))
-    # election_day = np.unique(election_day, axis=0)
+    # Extract samples
+    qmu_bs = []
+    for b in mu_bs:
+        qmu_bs.append(inference.latent_vars[b].params.eval())
+    qmu_bs = list(reversed(qmu_bs))
 
-    week = 23
-    first_week = inference.latent_vars[latent_variables[week]].params.eval()
-    # Burn in
-    first_week = first_week[4000:]
-    print(np.mean(first_week, axis=0))
-    print(np.std(first_week, axis=0))
+    qmu_as = []
+    for a in mu_as:
+        qmu_as.append(inference.latent_vars[a].params.eval())
+    qmu_as = list(reversed(qmu_as))
 
-    latents = list(inference.latent_vars.keys())
-    vari = inference.latent_vars[latents[-1]].params.eval()
-    vari = vari[1000:]
-    np.mean(vari)
-    # vari = np.unique(vari)
+    qmu_c = inference.latent_vars[mu_c].params.eval()
 
-    house_effects = inference.latent_vars[latent_variables[-2]].params.eval()
-    house_effects = house_effects[1000:]
-    np.mean(house_effects, axis=0)
-
-    mu_a = inference.latent_vars[latent_variables[-2]].params.eval()
-    mu_a = mu_a[4000:]
-    np.mean(mu_a, axis=0)
+    date_index = state_polls.date_index.as_matrix()
+    week_index = state_polls.week_index.as_matrix()
+    predicted_scores = predict_scores(qmu_as, qmu_bs, date_index, week_index, last_tuesday, E_day)
 
 
+    # week = 0
+    # election_day = inference.latent_vars[latent_variables[week]].params.eval()
+    # # Burn in
+    # election_day = election_day[2000:]
+    # print(np.mean(election_day, axis=0))
+    # print(np.std(election_day, axis=0))
+    # # election_day = np.unique(election_day, axis=0)

@@ -2,25 +2,25 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from edward.models import Normal, Binomial, MultivariateNormalFullCovariance, Uniform, Empirical
-from scipy.special import logit
+from scipy.special import logit, expit
 from scipy.stats import binom
 
 
 def _sample_n(self, n, seed=None):
-  # define Python function which returns samples as a Numpy array
-  def np_sample(N, logits):
-    p = 1 / (1 + np.exp(-1 * logits))
-    return binom.rvs(N, p, random_state=seed).astype(np.float32)
+    # define Python function which returns samples as a Numpy array
+    def np_sample(N, logits):
+      p = 1 / (1 + np.exp(-1 * logits))
+      return binom.rvs(N, p, random_state=seed).astype(np.float32)
 
-  # wrap python function as tensorflow op
-  # print(self.total_count)
-  val = tf.py_func(np_sample, [self.total_count, self.logits], [tf.float32])[0]
-  # set shape from unknown shape
-  batch_event_shape = self.batch_shape.concatenate(self.event_shape)
-  shape = tf.concat(
-      [tf.expand_dims(n, 0), tf.convert_to_tensor(batch_event_shape)], 0)
-  val = tf.reshape(val, shape)
-  return val
+    # wrap python function as tensorflow op
+    # print(self.total_count)
+    val = tf.py_func(np_sample, [self.total_count, self.logits], [tf.float32])[0]
+    # set shape from unknown shape
+    batch_event_shape = self.batch_shape.concatenate(self.event_shape)
+    shape = tf.concat(
+        [tf.expand_dims(n, 0), tf.convert_to_tensor(batch_event_shape)], 0)
+    val = tf.reshape(val, shape)
+    return val
 
 
 def prepare_polls(polls, t_last):
@@ -88,3 +88,28 @@ def process_2012_polls():
     ev_states = data_2012.ev
 
     return prior_diff_score, state_weights, ev_states
+
+def predict_scores(qmu_as, qmu_bs, date_index, week_index, last_tuesday, E_day):
+
+    t_last = np.max(date_index)
+    day_2_week = {}
+    for d in range(E_day + 1):
+        day_2_week[d] = d // 7
+
+    predicted_scores = []
+    for day in range(last_tuesday):
+        predicted_scores.append(expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]]))
+
+    for day in range(E_day - last_tuesday + 1):
+        predicted_scores.append(expit(qmu_bs[day_2_week[day + last_tuesday]]))
+
+    # Days by samples by state
+    return np.array(predicted_scores)
+
+
+
+
+
+
+
+
