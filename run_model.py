@@ -56,12 +56,12 @@ def main():
     # BACKWARD COMPONENT
     # Backward priors - from t_last to first day of polling
     # Latent State vote intention
-    sigma_b = 0.01 * tf.sqrt(tf.exp(tf.Variable(tf.random_normal([]))))
+    sigma_b = tf.sqrt(tf.exp(tf.Variable(tf.random_normal([], mean=-10.0))))
     for w in range(w_last):
         mu_bs.append(Normal(loc=mu_bs[-1], scale=sigma_b * np.sqrt(7) * tf.ones(n_states)))
 
     # Latent national component
-    sigma_a = 0.1 * tf.sqrt(tf.exp(tf.Variable(tf.random_normal([]))))
+    sigma_a = tf.sqrt(tf.exp(tf.Variable(tf.random_normal([], mean=-10.0))))
 
     # How can we vectorize this?
     # mu_a_base = Normal(loc=tf.zeros(last_tuesday+1), scale=0.025 * tf.ones(last_tuesday+1))
@@ -75,16 +75,17 @@ def main():
             mu_as.append(Normal(loc=mu_as[-1], scale=sigma_a))
 
     # Pollster house effect
-    sigma_c = 0.1 * tf.sqrt(tf.exp(tf.Variable(tf.random_normal([]))))
+    sigma_c = tf.sqrt(tf.exp(tf.Variable(tf.random_normal([], mean=-6.0))))
     mu_c = Normal(loc=tf.zeros(n_pollsters), scale=sigma_c)
 
     # Sampling error
-    samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=0.1)
+    # samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=0.13)
+    # samp_e_state = tf.random_normal([len(state_polls)], mean=0.0, stddev=0.13)
 
     # State polling error
-    # sigma_poll_error = 0.00112 * np.ones((n_states, n_states)) + ((0.0016) - 0.00112) * np.identity(n_states)
-    # sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
-    # e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
+    sigma_poll_error = 0.007 * np.ones((n_states, n_states)) + ((0.01) - 0.007) * np.identity(n_states)
+    sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
+    e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
 
     # Binomial logits using tf gather to get the right values.
     mu_b_tf = tf.stack(mu_bs)
@@ -98,12 +99,12 @@ def main():
 
     mu_b_log = tf.gather_nd(mu_b_tf, ind)
     mu_c_log = tf.gather(mu_c, state_polls.pollster_index)
-    # e_log = tf.gather(e, state_polls.state_index.as_matrix())
+    e_log = tf.gather(e, state_polls.state_index.as_matrix())
 
     log_lin = mu_b_log + mu_a_log + mu_c_log
-    Binomial._sample_n = _sample_n
+    # Binomial._sample_n = _sample_n
     X = tf.placeholder(tf.float32, len(state_polls))
-    y = Binomial(total_count=X, logits=log_lin + samp_e_state)#, value=tf.zeros(len(state_polls), dtype=tf.float32))
+    y = Binomial(total_count=X, logits=log_lin + e_log, value=tf.zeros(len(state_polls), dtype=tf.float32))
 
     # Inference
     others = [mu_c]
@@ -140,11 +141,27 @@ def main():
     week_index = state_polls.week_index.as_matrix()
     predicted_scores = predict_scores(qmu_as, qmu_bs, date_index, week_index, last_tuesday, E_day)
 
+    i = 0
+    for s in state_polls.state.unique():
+        state_s_polls = state_polls[state_polls.state == s]
+        state_scores = predicted_scores[:, :, i]
+        # generate_plot(state_scores, this_state_polls, burn_in=4000)
+        i += 1
 
-    # week = 0
-    # election_day = inference.latent_vars[latent_variables[week]].params.eval()
-    # # Burn in
-    # election_day = election_day[2000:]
-    # print(np.mean(election_day, axis=0))
-    # print(np.std(election_day, axis=0))
-    # # election_day = np.unique(election_day, axis=0)
+
+    week = 0
+    election_day = inference.latent_vars[latent_variables[week]].params.eval()
+    # Burn in
+    election_day = election_day[3000:]
+    election_day = np.unique(election_day, axis=0)
+    print(np.mean(election_day, axis=0))
+    print(np.std(election_day, axis=0))
+    # election_day = np.unique(election_day, axis=0)
+
+    week = 23
+    first_week = inference.latent_vars[latent_variables[week]].params.eval()
+    # Burn in
+    first_week = first_week[3000:]
+    print(np.mean(first_week, axis=0))
+    print(np.std(first_week, axis=0))
+    # first_week = np.unique(first_week, axis=0)
