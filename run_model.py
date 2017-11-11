@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import edward as ed
 import tensorflow as tf
-from edward.models import Normal, Binomial, MultivariateNormalFullCovariance, Uniform, Empirical, InverseGamma, Exponential
+from edward.models import Normal, NormalWithSoftplusScale, Binomial, MultivariateNormalFullCovariance, Uniform, Empirical, InverseGamma, Exponential
 from scipy.special import logit
 import datetime as dt
 # import math
@@ -56,12 +56,12 @@ def main():
     # BACKWARD COMPONENT
     # Backward priors - from t_last to first day of polling
     # Latent State vote intention
-    sigma_b = tf.sqrt(tf.exp(tf.Variable(tf.random_normal([], mean=-10.0))))
+    sigma_b = Normal(loc=-5.0, scale=1.0)
     for w in range(w_last):
-        mu_bs.append(Normal(loc=mu_bs[-1], scale=sigma_b * np.sqrt(7) * tf.ones(n_states)))
+        mu_bs.append(NormalWithSoftplusScale(loc=mu_bs[-1], scale=sigma_b))
 
     # Latent national component
-    sigma_a = tf.sqrt(tf.exp(tf.Variable(tf.random_normal([], mean=-10.0))))
+    sigma_a = Normal(loc=-3.0, scale=1.0)
 
     # How can we vectorize this?
     # mu_a_base = Normal(loc=tf.zeros(last_tuesday+1), scale=0.025 * tf.ones(last_tuesday+1))
@@ -70,20 +70,20 @@ def main():
     mu_as = []
     for t in range(last_tuesday):
         if t == 0:
-            mu_as.append(Normal(loc=0.0, scale=sigma_a))
+            mu_as.append(NormalWithSoftplusScale(loc=0.0, scale=sigma_a))
         else:
-            mu_as.append(Normal(loc=mu_as[-1], scale=sigma_a))
+            mu_as.append(NormalWithSoftplusScale(loc=mu_as[-1], scale=sigma_a))
 
     # Pollster house effect
-    sigma_c = tf.sqrt(tf.exp(tf.Variable(tf.random_normal([], mean=-6.0))))
-    mu_c = Normal(loc=tf.zeros(n_pollsters), scale=sigma_c)
+    sigma_c = Normal(loc=-2.0, scale=1.0)
+    mu_c = NormalWithSoftplusScale(loc=tf.zeros(n_pollsters), scale=sigma_c)
 
     # Sampling error
     # samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=0.13)
     # samp_e_state = tf.random_normal([len(state_polls)], mean=0.0, stddev=0.13)
 
     # State polling error
-    sigma_poll_error = 0.007 * np.ones((n_states, n_states)) + ((0.01) - 0.007) * np.identity(n_states)
+    sigma_poll_error = 0.01792 * np.ones((n_states, n_states)) + ((0.02) - 0.01792) * np.identity(n_states)
     sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
     e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
 
@@ -107,8 +107,9 @@ def main():
     y = Binomial(total_count=X, logits=log_lin + e_log, value=tf.zeros(len(state_polls), dtype=tf.float32))
 
     # Inference
+    sigmas = [sigma_a, sigma_b, sigma_c]
     others = [mu_c]
-    latent_variables = mu_bs + mu_as + others
+    latent_variables = mu_bs + mu_as + others + sigmas
     n_respondents = state_polls.n_respondents.as_matrix()
     n_clinton = state_polls.n_clinton.as_matrix()
     # 10,000 samples default
@@ -153,12 +154,12 @@ def main():
     election_day = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     election_day = election_day[3000:]
-    election_day = np.unique(election_day, axis=0)
+    # election_day = np.unique(election_day, axis=0)
     print(np.mean(election_day, axis=0))
     print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
 
-    week = 23
+    week = -2
     first_week = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     first_week = first_week[3000:]
