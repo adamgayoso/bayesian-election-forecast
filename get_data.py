@@ -2,7 +2,7 @@ import pollster
 import pandas as pd
 import datetime as dt
 
-START_DATE = dt.date(2016, 4, 1)
+START_DATE = dt.date(2016, 5, 1)
 ELECTION_DATE = dt.date(2016, 11, 8)
 end_data = ELECTION_DATE
 
@@ -43,7 +43,7 @@ def filter_polls(all_polls, end_date, undecided=False):
 
     cols = ['state', 'begin', 'end', 'poll_time', 'poll_date', 'week', 'day_of_week',
             'pollster', 'mode', 'population', 'observations',
-            'clinton', 'trump', 'both', 'other']
+            'clinton', 'trump', 'both', 'other', 'undecided']
 
     clean_polls = clean_polls.loc[rows, cols]
     clean_polls['p_clinton'] = clean_polls.clinton / clean_polls.both
