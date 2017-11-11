@@ -3,7 +3,7 @@ import numpy as np
 import edward as ed
 import tensorflow as tf
 from edward.models import Normal, NormalWithSoftplusScale, Binomial, MultivariateNormalFullCovariance, Uniform, Empirical, InverseGamma, Exponential
-from scipy.special import logit
+from scipy.special import logit, expit
 import datetime as dt
 # import math
 from scipy.stats import binom
@@ -22,6 +22,8 @@ def main():
     # Get prior information from 2012 election
     prior_diff_score, state_weights, ev_states = process_2012_polls()
     prior_diff_score = prior_diff_score[state_polls.state.unique()]
+    state_weights = state_weights[state_polls.state.unique()].as_matrix()
+    state_weights = tf.convert_to_tensor(state_weights, dtype=tf.float32)
 
     n_states = len(state_polls.state.unique())
     n_pollsters = len(polls.pollster.unique())
@@ -37,7 +39,7 @@ def main():
     # weeks_until_E = math.floor(days_until_E / 7)
     E_week = (ELECTION_DATE + dt.timedelta(days=-1)).isocalendar()[1] - polls.week.min()
 
-    # TODO make a covariance matrix function
+    # MODEL
     # FORWARD COMPONENT
     # Forecast priors - for dates from t_last to election day
     # Latent State vote intention
@@ -56,16 +58,12 @@ def main():
     # BACKWARD COMPONENT
     # Backward priors - from t_last to first day of polling
     # Latent State vote intention
-    sigma_b = Normal(loc=-5.0, scale=1.0)
+    sigma_b = Normal(loc=-6.0, scale=0.5)
     for w in range(w_last):
         mu_bs.append(NormalWithSoftplusScale(loc=mu_bs[-1], scale=sigma_b))
 
     # Latent national component
     sigma_a = Normal(loc=-3.0, scale=1.0)
-
-    # How can we vectorize this?
-    # mu_a_base = Normal(loc=tf.zeros(last_tuesday+1), scale=0.025 * tf.ones(last_tuesday+1))
-    # mu_as = tf.cumsum(mu_a_base)
     mu_a_buffer = tf.zeros(t_last - last_tuesday + 1, tf.float32)
     mu_as = []
     for t in range(last_tuesday):
@@ -87,34 +85,51 @@ def main():
     sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
     e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
 
-    # Binomial logits using tf gather to get the right values.
+    # STATE POLLS
     mu_b_tf = tf.stack(mu_bs)
     mu_a_tf = tf.stack(mu_as)
     mu_a_tf = tf.concat([mu_a_buffer, mu_a_tf], axis=0)
     # # Due to list in reverse
-    mu_a_log = tf.gather(mu_a_tf, (t_last - state_polls.date_index).as_matrix())
-    ind = state_polls[['week_index', 'state_index']].as_matrix()
+    mu_a_state = tf.gather(mu_a_tf, (t_last - state_polls.date_index).as_matrix())
+    state_ind = state_polls[['week_index', 'state_index']].as_matrix()
     # Due to list in reverse
-    ind[:, 0] = E_week - ind[:, 0]
+    state_ind[:, 0] = E_week - state_ind[:, 0]
 
-    mu_b_log = tf.gather_nd(mu_b_tf, ind)
-    mu_c_log = tf.gather(mu_c, state_polls.pollster_index)
-    e_log = tf.gather(e, state_polls.state_index.as_matrix())
+    mu_b_state = tf.gather_nd(mu_b_tf, state_ind)
+    mu_c_state = tf.gather(mu_c, state_polls.pollster_index)
+    e_state = tf.gather(e, state_polls.state_index.as_matrix())
 
-    log_lin = mu_b_log + mu_a_log + mu_c_log
-    # Binomial._sample_n = _sample_n
-    X = tf.placeholder(tf.float32, len(state_polls))
-    y = Binomial(total_count=X, logits=log_lin + e_log, value=tf.zeros(len(state_polls), dtype=tf.float32))
+    state_logits = mu_b_state + mu_a_state + e_state
 
-    # Inference
+    # NATIONAL POLLS
+    nat_ind = national_polls[['week_index', 'date_index']].as_matrix()
+    # Due to list in reverse
+    nat_ind[:, 0] = E_week - nat_ind[:, 0]
+    nat_ind[:, 1] = t_last - nat_ind[:, 1]
+    mu_b_nat = tf.gather(mu_b_tf, nat_ind[:, 0])
+    mu_a_nat = tf.expand_dims(tf.gather(mu_a_tf, nat_ind[:, 1]), 1)
+    # expit
+    nat_expits = 1 / (1 + tf.exp(-1 * (mu_a_nat + mu_b_nat + e)))
+    # logit
+    nat_weigh_avg = -tf.log((1 / (tf.reduce_sum(tf.multiply(state_weights, nat_expits), axis=1))) - 1)
+    mu_c_nat = tf.gather(mu_c, national_polls.pollster_index)
+    # alpha = Normal(loc=logit())
+
+    final_logits = tf.concat([state_logits, nat_weigh_avg], axis=0)
+    final_logits += tf.concat([mu_c_state, mu_c_nat], axis=0)
+
+    X = tf.placeholder(tf.float32, len(state_polls) + len(national_polls))
+    y = Binomial(total_count=X, logits=final_logits, value=tf.zeros(len(state_polls) + len(national_polls), dtype=tf.float32))
+
+    # INFERENCE
     sigmas = [sigma_a, sigma_b, sigma_c]
     others = [mu_c]
     latent_variables = mu_bs + mu_as + others + sigmas
-    n_respondents = state_polls.n_respondents.as_matrix()
-    n_clinton = state_polls.n_clinton.as_matrix()
+    n_respondents = np.append(state_polls.n_respondents.as_matrix(), national_polls.n_respondents.as_matrix())
+    n_clinton = np.append(state_polls.n_clinton.as_matrix(), national_polls.n_clinton.as_matrix())
     # 10,000 samples default
     inference = ed.HMC(latent_variables, data={X: n_respondents, y: n_clinton})
-    inference.initialize(n_print=500, step_size=0.003, n_steps=2)
+    inference.initialize(n_print=100, step_size=0.0031, n_steps=2)
 
     tf.global_variables_initializer().run()
     for t in range(inference.n_iter):
@@ -159,7 +174,7 @@ def main():
     print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
 
-    week = -2
+    week =27
     first_week = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     first_week = first_week[3000:]
