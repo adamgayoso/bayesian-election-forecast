@@ -7,7 +7,7 @@ from scipy.special import logit, expit
 import datetime as dt
 # import math
 from scipy.stats import binom
-from helper import _sample_n, prepare_polls, process_2012_polls, predict_scores
+from helper import _sample_n, prepare_polls, process_2012_polls, predict_scores, covariance_matrix
 
 ELECTION_DATE = dt.date(2016, 11, 8)
 pd.options.mode.chained_assignment = None
@@ -43,14 +43,14 @@ def main():
     # FORWARD COMPONENT
     # Forecast priors - for dates from t_last to election day
     # Latent State vote intention
-    mu_b_prior_cov = tf.convert_to_tensor(0.025 * np.ones((n_states, n_states)) + 0.025 * np.identity(n_states), dtype=tf.float32)
+    mu_b_prior_cov = covariance_matrix(0.05, 0.5, n_states)
     mu_b_prior_mean = tf.convert_to_tensor(logit(0.486 + prior_diff_score).as_matrix(), dtype=tf.float32)
     mu_b_prior = MultivariateNormalFullCovariance(loc=mu_b_prior_mean, covariance_matrix=mu_b_prior_cov)
 
     # Reverse random walk for dates where we don't have polls
     mu_bs = []
     mu_bs.append(mu_b_prior)
-    sigma_walk_b_forecast = 0.00118 * np.ones((n_states, n_states)) + ((7 * 0.015 ** 2) - 0.00118) * np.identity(n_states)
+    sigma_walk_b_forecast = covariance_matrix(7 * 0.015 ** 2, 0.75, n_states)
     sigma_walk_b_forecast = tf.convert_to_tensor(sigma_walk_b_forecast, dtype=tf.float32)
     for w in range(E_week - state_polls.week_index.max()):
         mu_bs.append(MultivariateNormalFullCovariance(loc=mu_bs[-1], covariance_matrix=sigma_walk_b_forecast))
@@ -81,7 +81,7 @@ def main():
     # samp_e_state = tf.random_normal([len(state_polls)], mean=0.0, stddev=0.13)
 
     # State polling error
-    sigma_poll_error = 0.01792 * np.ones((n_states, n_states)) + ((0.02) - 0.01792) * np.identity(n_states)
+    sigma_poll_error = covariance_matrix(0.02, 0.75, n_states)
     sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
     e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
 

@@ -6,6 +6,13 @@ from scipy.special import logit, expit
 from scipy.stats import binom
 
 
+def covariance_matrix(variance, correlation, d):
+
+    cm = variance * correlation * np.ones((d,d))
+    cm += (variance - variance * correlation) * np.identity(d)
+
+    return cm
+
 def _sample_n(self, n, seed=None):
     # define Python function which returns samples as a Numpy array
     def np_sample(N, logits):
