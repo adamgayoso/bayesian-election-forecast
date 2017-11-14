@@ -58,7 +58,7 @@ def main():
     # BACKWARD COMPONENT
     # Backward priors - from t_last to first day of polling
     # Latent State vote intention
-    sigma_b = Normal(loc=-6.0, scale=0.5)
+    sigma_b = Normal(loc=-8.0, scale=0.5)
     for w in range(w_last):
         mu_bs.append(NormalWithSoftplusScale(loc=mu_bs[-1], scale=sigma_b))
 
@@ -177,7 +177,10 @@ def main():
     week =27
     first_week = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
-    first_week = first_week[3000:]
+    first_week = first_week[6000:]
     print(np.mean(first_week, axis=0))
     print(np.std(first_week, axis=0))
     # first_week = np.unique(first_week, axis=0)
+
+    BURN_IN = 6000
+    predicted_scores[:, :, -2][:, BURN_IN:][:, 1]
