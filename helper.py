@@ -104,11 +104,11 @@ def predict_scores(qmu_as, qmu_bs, date_index, week_index, last_tuesday, E_day):
         day_2_week[d] = d // 7
 
     predicted_scores = []
-    for day in range(last_tuesday):
+    for day in range(E_day):
         predicted_scores.append(expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]]))
 
-    for day in range(E_day - last_tuesday + 1):
-        predicted_scores.append(expit(qmu_bs[day_2_week[day + last_tuesday]]))
+
+    predicted_scores.append(expit(qmu_bs[day_2_week[E_day]]))
 
     # Days by samples by state
     return np.array(predicted_scores)

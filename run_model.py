@@ -68,9 +68,9 @@ def main():
 
     # Latent national component
     sigma_a = Normal(loc=-3.0, scale=1.0)
-    mu_a_buffer = tf.zeros(t_last - last_tuesday + 1, tf.float32)
+    mu_a_buffer = tf.zeros(1, tf.float32)
     mu_as = []
-    for t in range(last_tuesday):
+    for t in range(E_day):
         if t == 0:
             mu_as.append(NormalWithSoftplusScale(loc=0.0, scale=sigma_a))
         else:
@@ -85,8 +85,8 @@ def main():
     # samp_e_state = tf.random_normal([len(state_polls)], mean=0.0, stddev=0.13)
 
     # State polling error
-    sigma_poll_error = covariance_matrix(0.02, 0.75, n_states)
-    sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
+    # sigma_poll_error = covariance_matrix(0.02, 0.75, n_states)
+    # sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
     # e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
 
     # STATE POLLS
@@ -94,14 +94,14 @@ def main():
     mu_a_tf = tf.stack(mu_as)
     mu_a_tf = tf.concat([mu_a_buffer, mu_a_tf], axis=0)
     # # Due to list in reverse
-    mu_a_state = tf.gather(mu_a_tf, (t_last - state_polls.date_index).as_matrix())
+    mu_a_state = tf.gather(mu_a_tf, (E_day - state_polls.date_index).as_matrix())
     state_ind = state_polls[['week_index', 'state_index']].as_matrix()
     # Due to list in reverse
     state_ind[:, 0] = E_week - state_ind[:, 0]
 
     mu_b_state = tf.gather_nd(mu_b_tf, state_ind)
     mu_c_state = tf.gather(mu_c, state_polls.pollster_index)
-    e_state = tf.gather(e, state_polls.state_index.as_matrix())
+    # e_state = tf.gather(e, state_polls.state_index.as_matrix())
 
     state_logits = mu_b_state + mu_a_state #+ e_state
 
@@ -109,7 +109,7 @@ def main():
     nat_ind = national_polls[['week_index', 'date_index']].as_matrix()
     # Due to list in reverse
     nat_ind[:, 0] = E_week - nat_ind[:, 0]
-    nat_ind[:, 1] = t_last - nat_ind[:, 1]
+    nat_ind[:, 1] = E_day - nat_ind[:, 1]
     mu_b_nat = tf.gather(mu_b_tf, nat_ind[:, 0])
     mu_a_nat = tf.expand_dims(tf.gather(mu_a_tf, nat_ind[:, 1]), 1)
     # expit
@@ -133,7 +133,7 @@ def main():
     n_clinton = np.append(state_polls.n_clinton.as_matrix(), national_polls.n_clinton.as_matrix())
     # 10,000 samples default
     inference = ed.HMC(latent_variables, data={X: n_respondents, y: n_clinton})
-    inference.initialize(n_print=100, step_size=0.0031, n_steps=2)
+    inference.initialize(n_print=100, step_size=0.006, n_steps=2)
 
     tf.global_variables_initializer().run()
     for t in range(inference.n_iter):
