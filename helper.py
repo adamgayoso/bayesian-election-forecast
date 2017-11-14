@@ -99,16 +99,19 @@ def process_2012_polls():
 def predict_scores(qmu_as, qmu_bs, date_index, week_index, last_tuesday, E_day):
 
     t_last = np.max(date_index)
+    n_states = qmu_bs[0].shape[1]
     day_2_week = {}
     for d in range(E_day + 1):
         day_2_week[d] = d // 7
 
+    sigma_poll_error = covariance_matrix(0.0049, 0.75, n_states)
     predicted_scores = []
     for day in range(E_day):
-        predicted_scores.append(expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]]))
+        e = np.random.multivariate_normal(np.zeros(n_states), cov=sigma_poll_error)
+        predicted_scores.append(expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]] + e))
 
-
-    predicted_scores.append(expit(qmu_bs[day_2_week[E_day]]))
+    e = np.random.multivariate_normal(np.zeros(n_states), cov=sigma_poll_error)
+    predicted_scores.append(expit(qmu_bs[day_2_week[E_day]] + e))
 
     # Days by samples by state
     return np.array(predicted_scores)

@@ -133,7 +133,7 @@ def main():
     n_clinton = np.append(state_polls.n_clinton.as_matrix(), national_polls.n_clinton.as_matrix())
     # 10,000 samples default
     inference = ed.HMC(latent_variables, data={X: n_respondents, y: n_clinton})
-    inference.initialize(n_print=100, step_size=0.006, n_steps=2)
+    inference.initialize(n_print=100, step_size=0.0047, n_steps=2)
 
     tf.global_variables_initializer().run()
     for t in range(inference.n_iter):
@@ -170,16 +170,22 @@ def main():
         i += 1
 
     # Apply burn in
-    predicted_scores = predicted_scores[:, BURN_IN:, :]
+    clean_scores = predicted_scores[:, BURN_IN:, :]
 
     # SIMULATE ELECTION
-    e_day_results = predicted_scores[-1, :, :]
+    e_day_results = clean_scores[-1, :, :]
     outcomes = []
+    clinton_wins = 0
     for i in range(10000):
-        draw = np.random.randint(0, e_day_results.shape[1])
+        draw = np.random.randint(0, e_day_results.shape[0])
         outcome = e_day_results[draw]
         outcome = np.dot(outcome >= 0.5, ev_states)
+        if outcome > 270:
+            clinton_wins += 1
         outcomes.append(outcome)
+
+    print("Probability Clinton wins", clinton_wins / 10000.0)
+
     x = np.unique(outcomes)
     freq = collections.Counter(outcomes)
     height = [freq[s] for s in x]
