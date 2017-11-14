@@ -8,8 +8,11 @@ import datetime as dt
 # import math
 from scipy.stats import binom
 from helper import _sample_n, prepare_polls, process_2012_polls, predict_scores, covariance_matrix
+import matplotlib.pyplot as plt
+import collections
 
 ELECTION_DATE = dt.date(2016, 11, 8)
+BURN_IN = 3000
 pd.options.mode.chained_assignment = None
 
 def main():
@@ -24,6 +27,7 @@ def main():
     prior_diff_score = prior_diff_score[state_polls.state.unique()]
     state_weights = state_weights[state_polls.state.unique()].as_matrix()
     state_weights = tf.convert_to_tensor(state_weights, dtype=tf.float32)
+    ev_states = ev_states[state_polls.state.unique()].as_matrix()
 
     n_states = len(state_polls.state.unique())
     n_pollsters = len(polls.pollster.unique())
@@ -43,7 +47,7 @@ def main():
     # FORWARD COMPONENT
     # Forecast priors - for dates from t_last to election day
     # Latent State vote intention
-    mu_b_prior_cov = covariance_matrix(0.05, 0.5, n_states)
+    mu_b_prior_cov = tf.convert_to_tensor(covariance_matrix(0.05, 0.5, n_states), dtype=tf.float32)
     mu_b_prior_mean = tf.convert_to_tensor(logit(0.486 + prior_diff_score).as_matrix(), dtype=tf.float32)
     mu_b_prior = MultivariateNormalFullCovariance(loc=mu_b_prior_mean, covariance_matrix=mu_b_prior_cov)
 
@@ -73,7 +77,7 @@ def main():
             mu_as.append(NormalWithSoftplusScale(loc=mu_as[-1], scale=sigma_a))
 
     # Pollster house effect
-    sigma_c = Normal(loc=-2.0, scale=1.0)
+    sigma_c = Normal(loc=-4.0, scale=0.5)
     mu_c = NormalWithSoftplusScale(loc=tf.zeros(n_pollsters), scale=sigma_c)
 
     # Sampling error
@@ -83,7 +87,7 @@ def main():
     # State polling error
     sigma_poll_error = covariance_matrix(0.02, 0.75, n_states)
     sigma_poll_error = tf.convert_to_tensor(sigma_poll_error, dtype=tf.float32)
-    e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
+    # e = MultivariateNormalFullCovariance(loc=tf.zeros(n_states), covariance_matrix=sigma_poll_error)
 
     # STATE POLLS
     mu_b_tf = tf.stack(mu_bs)
@@ -99,7 +103,7 @@ def main():
     mu_c_state = tf.gather(mu_c, state_polls.pollster_index)
     e_state = tf.gather(e, state_polls.state_index.as_matrix())
 
-    state_logits = mu_b_state + mu_a_state + e_state
+    state_logits = mu_b_state + mu_a_state #+ e_state
 
     # NATIONAL POLLS
     nat_ind = national_polls[['week_index', 'date_index']].as_matrix()
@@ -109,7 +113,7 @@ def main():
     mu_b_nat = tf.gather(mu_b_tf, nat_ind[:, 0])
     mu_a_nat = tf.expand_dims(tf.gather(mu_a_tf, nat_ind[:, 1]), 1)
     # expit
-    nat_expits = 1 / (1 + tf.exp(-1 * (mu_a_nat + mu_b_nat + e)))
+    nat_expits = 1 / (1 + tf.exp(-1 * (mu_a_nat + mu_b_nat)))# + e)))
     # logit
     nat_weigh_avg = -tf.log((1 / (tf.reduce_sum(tf.multiply(state_weights, nat_expits), axis=1))) - 1)
     mu_c_nat = tf.gather(mu_c, national_polls.pollster_index)
@@ -139,6 +143,7 @@ def main():
         if t % inference.n_print == 0:
             print(inference.latent_vars[latent_variables[0]].params.eval()[t])
             print(inference.latent_vars[latent_variables[23]].params.eval()[t])
+            print(inference.latent_vars[mu_c].params.eval()[t])
 
     # Extract samples
     qmu_bs = []
@@ -164,11 +169,28 @@ def main():
         # generate_plot(state_scores, this_state_polls, burn_in=4000)
         i += 1
 
+    # Apply burn in
+    predicted_scores = predicted_scores[:, BURN_IN:, :]
+
+    # SIMULATE ELECTION
+    e_day_results = predicted_scores[-1, :, :]
+    outcomes = []
+    for i in range(10000):
+        draw = np.random.randint(0, e_day_results.shape[1])
+        outcome = e_day_results[draw]
+        outcome = np.dot(outcome >= 0.5, ev_states)
+        outcomes.append(outcome)
+    x = np.unique(outcomes)
+    freq = collections.Counter(outcomes)
+    height = [freq[s] for s in x]
+    plt.bar(x, height)
+    plt.show()
+
 
     week = 0
     election_day = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
-    election_day = election_day[3000:]
+    election_day = election_day[BURN_IN:]
     # election_day = np.unique(election_day, axis=0)
     print(np.mean(election_day, axis=0))
     print(np.std(election_day, axis=0))
@@ -177,10 +199,17 @@ def main():
     week =27
     first_week = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
-    first_week = first_week[6000:]
+    first_week = first_week[BURN_IN:]
     print(np.mean(first_week, axis=0))
     print(np.std(first_week, axis=0))
     # first_week = np.unique(first_week, axis=0)
 
-    BURN_IN = 6000
+    week =-4
+    house_effects = inference.latent_vars[latent_variables[week]].params.eval()
+    # Burn in
+    house_effects = house_effects[BURN_IN:]
+    print(np.mean(house_effects, axis=0))
+    print(np.std(house_effects, axis=0))
+    # house_effects = np.unique(house_effects, axis=0)
+
     predicted_scores[:, :, -2][:, BURN_IN:][:, 1]
