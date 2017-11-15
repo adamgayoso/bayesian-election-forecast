@@ -10,6 +10,7 @@ from scipy.stats import binom
 from helper import _sample_n, prepare_polls, process_2012_polls, predict_scores, covariance_matrix
 import matplotlib.pyplot as plt
 import collections
+from plots import generate_plot
 
 ELECTION_DATE = dt.date(2016, 11, 8)
 BURN_IN = 3000
@@ -67,7 +68,7 @@ def main():
         mu_bs.append(NormalWithSoftplusScale(loc=mu_bs[-1], scale=sigma_b))
 
     # Latent national component
-    sigma_a = Normal(loc=-3.0, scale=1.0)
+    sigma_a = Normal(loc=-5.0, scale=1.0)
     mu_a_buffer = tf.zeros(1, tf.float32)
     mu_as = []
     for t in range(E_day):
@@ -166,7 +167,7 @@ def main():
     for s in state_polls.state.unique():
         state_s_polls = state_polls[state_polls.state == s]
         state_scores = predicted_scores[:, :, i]
-        # generate_plot(state_scores, this_state_polls, burn_in=4000)
+        generate_plot(state_scores, state_s_polls, BURN_IN, s)
         i += 1
 
     # Apply burn in
@@ -202,7 +203,7 @@ def main():
     print(np.std(election_day, axis=0))
     # election_day = np.unique(election_day, axis=0)
 
-    week =27
+    week = 27
     first_week = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     first_week = first_week[BURN_IN:]

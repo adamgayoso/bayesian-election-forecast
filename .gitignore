@@ -8,3 +8,5 @@ bayesian_logistic_regression\.py
 __pycache__/
 
 *.pickle
+
+time_plots/
