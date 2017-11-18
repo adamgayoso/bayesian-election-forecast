@@ -13,7 +13,7 @@ import collections
 from plots import generate_plot
 
 ELECTION_DATE = dt.date(2016, 11, 8)
-BURN_IN = 3000
+BURN_IN = 5000
 pd.options.mode.chained_assignment = None
 
 def main():
@@ -63,23 +63,23 @@ def main():
     # BACKWARD COMPONENT
     # Backward priors - from t_last to first day of polling
     # Latent State vote intention
-    sigma_b = Normal(loc=-8.0, scale=0.5)
+    sigma_b = 0.005 * np.sqrt(7)
     for w in range(w_last):
-        mu_bs.append(NormalWithSoftplusScale(loc=mu_bs[-1], scale=sigma_b))
+        mu_bs.append(Normal(loc=mu_bs[-1], scale=sigma_b * tf.ones(n_states)))
 
     # Latent national component
-    sigma_a = Normal(loc=-5.0, scale=1.0)
+    sigma_a = 0.025
     mu_a_buffer = tf.zeros(1, tf.float32)
     mu_as = []
     for t in range(E_day):
         if t == 0:
-            mu_as.append(NormalWithSoftplusScale(loc=0.0, scale=sigma_a))
+            mu_as.append(Normal(loc=0.0, scale=sigma_a))
         else:
-            mu_as.append(NormalWithSoftplusScale(loc=mu_as[-1], scale=sigma_a))
+            mu_as.append(Normal(loc=mu_as[-1], scale=sigma_a))
 
     # Pollster house effect
-    sigma_c = Normal(loc=-4.0, scale=0.5)
-    mu_c = NormalWithSoftplusScale(loc=tf.zeros(n_pollsters), scale=sigma_c)
+    sigma_c = 0.05
+    mu_c = Normal(loc=tf.zeros(n_pollsters), scale=sigma_c * tf.ones(n_pollsters))
 
     # Sampling error
     # samp_e_state = Normal(loc=tf.zeros(len(state_polls)), scale=0.13)
@@ -127,14 +127,13 @@ def main():
     y = Binomial(total_count=X, logits=final_logits, value=tf.zeros(len(state_polls) + len(national_polls), dtype=tf.float32))
 
     # INFERENCE
-    sigmas = [sigma_a, sigma_b, sigma_c]
     others = [mu_c]
-    latent_variables = mu_bs + mu_as + others + sigmas
+    latent_variables = mu_bs + mu_as + others
     n_respondents = np.append(state_polls.n_respondents.as_matrix(), national_polls.n_respondents.as_matrix())
     n_clinton = np.append(state_polls.n_clinton.as_matrix(), national_polls.n_clinton.as_matrix())
     # 10,000 samples default
     inference = ed.HMC(latent_variables, data={X: n_respondents, y: n_clinton})
-    inference.initialize(n_print=100, step_size=0.0047, n_steps=2)
+    inference.initialize(n_print=100, step_size=0.003, n_steps=2)
 
     tf.global_variables_initializer().run()
     for t in range(inference.n_iter):
@@ -211,7 +210,7 @@ def main():
     print(np.std(first_week, axis=0))
     # first_week = np.unique(first_week, axis=0)
 
-    week =-4
+    week = -1
     house_effects = inference.latent_vars[latent_variables[week]].params.eval()
     # Burn in
     house_effects = house_effects[BURN_IN:]
