@@ -1,27 +1,28 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from edward.models import Normal, Binomial, MultivariateNormalFullCovariance, Uniform, Empirical
-from scipy.special import logit, expit
+from scipy.special import expit
 from scipy.stats import binom
 
 
 def covariance_matrix(variance, correlation, d):
 
-    cm = variance * correlation * np.ones((d,d))
+    cm = variance * correlation * np.ones((d, d))
     cm += (variance - variance * correlation) * np.identity(d)
 
     return cm
 
+
 def _sample_n(self, n, seed=None):
     # define Python function which returns samples as a Numpy array
     def np_sample(N, logits):
-      p = 1 / (1 + np.exp(-1 * logits))
-      return binom.rvs(N, p, random_state=seed).astype(np.float32)
+        p = 1 / (1 + np.exp(-1 * logits))
+        return binom.rvs(N, p, random_state=seed).astype(np.float32)
 
     # wrap python function as tensorflow op
     # print(self.total_count)
-    val = tf.py_func(np_sample, [self.total_count, self.logits], [tf.float32])[0]
+    val = tf.py_func(np_sample, [self.total_count,
+                                 self.logits], [tf.float32])[0]
     # set shape from unknown shape
     batch_event_shape = self.batch_shape.concatenate(self.event_shape)
     shape = tf.concat(
@@ -33,7 +34,7 @@ def _sample_n(self, n, seed=None):
 def prepare_polls(polls, t_last):
     """Prepare the polling data by creating an index for pollsters and dates
         Dates start on day 0
-        Code liberally taken from:
+        Code modified from:
         https://github.com/fonnesbeck/election_pycast/blob/master/Election2016.ipynb
 
     Args:
@@ -77,18 +78,30 @@ def prepare_polls(polls, t_last):
 
 
 def process_2012_polls():
+    """Process the 2012 election results
+        Code modified from:
+        https://github.com/fonnesbeck/election_pycast/blob/master/Election2016.ipynb
 
-    # Taken from https://github.com/fonnesbeck/election_pycast/blob/master/Election2016.ipynb
+    Returns:
+        series: difference between state vote and national vote for 2012
+        series: population weight of each state
+        series: electoral votes for each state
+    """
     data_2012 = pd.read_csv('data/2012.csv', index_col=-3).sort_index()
-    new_index = pd.Series(data_2012.index.values).str.lower().replace({'d.c.':'district of columbia'})
+    new_index = pd.Series(data_2012.index.values).str.lower(
+    ).replace({'d.c.': 'district of columbia'})
     data_2012.index = new_index
 
-    national_score = data_2012.obama_count.sum() / (data_2012.romney_count + data_2012.obama_count).sum()
+    national_score = data_2012.obama_count.sum()
+    national_score /= (data_2012.romney_count + data_2012.obama_count).sum()
 
-    data_2012['score'] = data_2012.obama_count / (data_2012.romney_count + data_2012.obama_count)
+    data_2012['score'] = data_2012.obama_count / \
+        (data_2012.romney_count + data_2012.obama_count)
     data_2012['diff_score'] = data_2012.score - national_score
-    data_2012['share_national'] = (data_2012.total_count * (1 + data_2012.adult_pop_growth_2011_15)
-                                   / (data_2012.total_count*(1+data_2012.adult_pop_growth_2011_15)).sum())
+    apg1115 = data_2012.adult_pop_growth_2011_15
+    tc = data_2012.total_count
+    share_national = (tc * (1 + apg1115) / (tc * (1 + apg1115)).sum())
+    data_2012['share_national'] = share_national
 
     prior_diff_score = data_2012.diff_score
     state_weights = data_2012.share_national / data_2012.share_national.sum()
@@ -96,9 +109,18 @@ def process_2012_polls():
 
     return prior_diff_score, state_weights, ev_states
 
-def predict_scores(qmu_as, qmu_bs, date_index, week_index, last_tuesday, E_day):
 
-    t_last = np.max(date_index)
+def predict_scores(qmu_as, qmu_bs, E_day):
+    """Predicts daily vote intentions using results from inference
+    Args:
+        qmu_as (np.array): mu_a posterior samples
+        qmu_bs (np.array): mu_b posterior samples
+        E_day (int): index for election day
+
+    Returns:
+        np.array: days by samples by states score
+    """
+    # t_last = np.max(date_index)
     n_samples, n_states = qmu_bs[0].shape
     day_2_week = {}
     for d in range(E_day + 1):
@@ -106,19 +128,13 @@ def predict_scores(qmu_as, qmu_bs, date_index, week_index, last_tuesday, E_day):
 
     sigma_poll_error = covariance_matrix(0.0049, 0.75, n_states)
     predicted_scores = []
-    e = np.random.multivariate_normal(np.zeros(n_states), cov=sigma_poll_error, size=n_samples)
+    e = np.random.multivariate_normal(
+        np.zeros(n_states), cov=sigma_poll_error, size=n_samples)
     for day in range(E_day):
-        predicted_scores.append(expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]] + e))
+        predicted_scores.append(
+            expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]] + e))
 
     predicted_scores.append(expit(qmu_bs[day_2_week[E_day]] + e))
 
     # Days by samples by state
     return np.array(predicted_scores)
-
-
-
-
-
-
-
-
