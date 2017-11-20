@@ -110,7 +110,7 @@ def process_2012_polls():
     return prior_diff_score, state_weights, ev_states
 
 
-def predict_scores(qmu_as, qmu_bs, E_day):
+def predict_scores(qmu_as, qmu_bs, E_day, w, b, var=0.25):
     """Predicts daily vote intentions using results from inference
     Args:
         qmu_as (np.array): mu_a posterior samples
@@ -126,15 +126,23 @@ def predict_scores(qmu_as, qmu_bs, E_day):
     for d in range(E_day + 1):
         day_2_week[d] = d // 7
 
-    sigma_poll_error = covariance_matrix(0.0049, 0.75, n_states)
+    sigma_poll_error = covariance_matrix(var, 0.75, n_states)
     predicted_scores = []
     e = np.random.multivariate_normal(
         np.zeros(n_states), cov=sigma_poll_error, size=n_samples)
-    for day in range(E_day):
-        predicted_scores.append(
-            expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]] + e))
 
-    predicted_scores.append(expit(qmu_bs[day_2_week[E_day]] + e))
+    #Logistic-Normal Transformation
+    exp_e = expit(e)
+
+    for day in range(E_day + 1):
+        und = (w * day + b) / 100
+        und_c = exp_e * und
+        if day != E_day:
+            p = expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]])
+            predicted_scores.append((p + und_c) / (1 / (1 - und)))
+        else:
+            p = expit(qmu_bs[day_2_week[E_day]])
+            predicted_scores.append((p + und_c) / (1 / (1 - und)))
 
     # Days by samples by state
     return np.array(predicted_scores)

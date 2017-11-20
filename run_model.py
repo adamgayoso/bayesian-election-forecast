@@ -158,14 +158,32 @@ def main():
 
     qmu_c = inference.latent_vars[mu_c].params.eval()
 
-    predicted_scores = predict_scores(qmu_as, qmu_bs, E_day)
 
-    i = 0
-    for s in state_polls.state.unique():
-        state_s_polls = state_polls[state_polls.state == s]
-        state_scores = predicted_scores[:, :, i]
-        generate_plot(state_scores, state_s_polls, BURN_IN, s)
-        i += 1
+    # Undecided Voters
+    # Data
+    undecided_table = state_polls[['undecided', 'date_index', 'state_index']].as_matrix()
+    undecided_table = undecided_table.astype(np.int64)
+    undecided_table = undecided_table[np.where(undecided_table[:, 0] != 0)[0]]
+    undecided = undecided_table[:, 0]
+    date_index = undecided_table[:, 1]
+    state_index = undecided_table[:, 2]
+    # Model
+    w = Normal(loc=tf.zeros(n_states), scale=tf.ones(n_states))
+    b = Normal(loc=tf.zeros(n_states), scale=tf.ones(n_states))
+    gat_w = tf.gather(w, state_index)
+    gat_b = tf.gather(b, state_index)
+    und = Normal(loc=gat_w * date_index + gat_b, scale=1.0)
+    qw = Normal(loc=tf.Variable(tf.random_normal([n_states])), scale=tf.nn.softplus(tf.Variable(tf.random_normal([n_states]))))
+    qb = Normal(loc=tf.Variable(tf.random_normal([n_states])), scale=tf.nn.softplus(tf.Variable(tf.random_normal([n_states]))))
+    # Inference
+    inference = ed.KLqp({w: qw, b: qb}, data={und: undecided})
+    inference.run(n_samples=10, n_iter=3000)
+
+    mean_w = qw.mean().eval()
+    mean_b = qb.mean().eval()
+
+    # Predict Scores
+    predicted_scores = predict_scores(qmu_as, qmu_bs, E_day, mean_w, mean_b, var=2)
 
     # Apply burn in
     clean_scores = predicted_scores[:, BURN_IN:, :]
@@ -189,6 +207,14 @@ def main():
     height = [freq[s] for s in x]
     plt.bar(x, height)
     plt.show()
+
+    # Create time plots
+    i = 0
+    for s in state_polls.state.unique():
+        state_s_polls = state_polls[state_polls.state == s]
+        state_scores = predicted_scores[:, :, i]
+        generate_plot(state_scores, state_s_polls, BURN_IN, s)
+        i += 1
 
     week = 0
     election_day = inference.latent_vars[latent_variables[week]].params.eval()
