@@ -10,7 +10,7 @@ from helper import prepare_polls, process_2012_polls
 from helper import predict_scores, covariance_matrix
 import matplotlib.pyplot as plt
 import collections
-from plots import generate_plot
+from plots import generate_plot, generate_undecided_plot
 
 ELECTION_DATE = dt.date(2016, 11, 8)
 BURN_IN = 5000
@@ -209,12 +209,13 @@ def main():
     plt.bar(x, height)
     plt.show()
 
-    # Create time plots
+    # Create plots
     i = 0
     for s in state_polls.state.unique():
         state_s_polls = state_polls[state_polls.state == s]
         state_scores = predicted_scores[:, :, i]
         generate_plot(state_scores, state_s_polls, BURN_IN, s, save=True)
+        generate_undecided_plot(undecided_table, i, s, mean_w, mean_b, E_day, save=True)
         i += 1
 
     week = 0

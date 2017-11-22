@@ -7,6 +7,5 @@ __pycache__/
 
 *.pickle
 
-time_plots/
 
 final-project/\.ipynb_checkpoints/
