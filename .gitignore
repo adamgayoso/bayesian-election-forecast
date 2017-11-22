@@ -1,8 +1,6 @@
 
 \.DS_Store
 
-src/
-
 bayesian_logistic_regression\.py
 
 __pycache__/
@@ -10,3 +8,5 @@ __pycache__/
 *.pickle
 
 time_plots/
+
+final-project/\.ipynb_checkpoints/

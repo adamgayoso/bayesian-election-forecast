@@ -38,6 +38,8 @@ def filter_polls(all_polls, end_date, undecided=False):
     # This is a percentage * 100
     clean_polls['both'] = clean_polls.clinton + clean_polls.trump
     clean_polls.undecided = clean_polls.undecided.fillna(0)
+    clean_polls['p_undecided'] = 100 * clean_polls.undecided / \
+        (clean_polls.both + clean_polls.undecided)
 
     rows = (clean_polls.observations > 1)
     rows = rows & (clean_polls.poll_date >= START_DATE)
@@ -46,7 +48,7 @@ def filter_polls(all_polls, end_date, undecided=False):
     cols = ['state', 'begin', 'end', 'poll_time', 'poll_date',
             'week', 'day_of_week', 'pollster', 'mode', 'population',
             'observations', 'clinton', 'trump', 'both',
-            'other', 'undecided']
+            'other', 'undecided', 'p_undecided']
 
     clean_polls = clean_polls.loc[rows, cols]
     clean_polls['p_clinton'] = clean_polls.clinton / clean_polls.both

@@ -26,9 +26,9 @@ def main():
     state_polls, national_polls = prepare_polls(polls, up_to_t)
 
     # Get prior information from 2012 election
-    prior_diff_score, state_weights, ev_states = process_2012_polls()
+    prior_diff_score, state_w, ev_states = process_2012_polls()
     prior_diff_score = prior_diff_score[state_polls.state.unique()]
-    state_weights = state_weights[state_polls.state.unique()].as_matrix()
+    state_weights = state_w[state_polls.state.unique()].as_matrix()
     state_weights = tf.convert_to_tensor(state_weights, dtype=tf.float32)
     ev_states = ev_states[state_polls.state.unique()].as_matrix()
 
@@ -103,6 +103,8 @@ def main():
     state_logits = mu_b_state + mu_a_state
 
     # NATIONAL POLLS
+    alpha_mean = (state_w * prior_diff_score).sum().astype(np.float32)
+    alpha = Normal(loc=alpha_mean, scale=0.2)
     nat_ind = national_polls[['week_index', 'date_index']].as_matrix()
     # Due to list in reverse
     nat_ind[:, 0] = E_week - nat_ind[:, 0]
@@ -114,8 +116,8 @@ def main():
     # logit
     nat_weigh_avg = tf.multiply(state_weights, nat_expits)
     nat_weigh_avg = -tf.log((1 / (tf.reduce_sum(nat_weigh_avg, axis=1))) - 1)
+    nat_weigh_avg += alpha
     mu_c_nat = tf.gather(mu_c, national_polls.pollster_index)
-    # alpha = Normal(loc=logit())
 
     final_logits = tf.concat([state_logits, nat_weigh_avg], axis=0)
     final_logits += tf.concat([mu_c_state, mu_c_nat], axis=0)
@@ -125,7 +127,7 @@ def main():
         len(state_polls) + len(national_polls), dtype=tf.float32))
 
     # INFERENCE
-    others = [mu_c]
+    others = [mu_c, alpha]
     latent_variables = mu_bs + mu_as + others
     n_respondents = np.append(state_polls.n_respondents.as_matrix(
     ), national_polls.n_respondents.as_matrix())
@@ -161,12 +163,11 @@ def main():
 
     # Undecided Voters
     # Data
-    undecided_table = state_polls[['undecided', 'date_index', 'state_index']].as_matrix()
-    undecided_table = undecided_table.astype(np.int64)
+    undecided_table = state_polls[['p_undecided', 'date_index', 'state_index']].as_matrix()
     undecided_table = undecided_table[np.where(undecided_table[:, 0] != 0)[0]]
     undecided = undecided_table[:, 0]
-    date_index = undecided_table[:, 1]
-    state_index = undecided_table[:, 2]
+    date_index = undecided_table[:, 1].astype(np.int32)
+    state_index = undecided_table[:, 2].astype(np.int32)
     # Model
     w = Normal(loc=tf.zeros(n_states), scale=tf.ones(n_states))
     b = Normal(loc=tf.zeros(n_states), scale=tf.ones(n_states))
@@ -213,7 +214,7 @@ def main():
     for s in state_polls.state.unique():
         state_s_polls = state_polls[state_polls.state == s]
         state_scores = predicted_scores[:, :, i]
-        generate_plot(state_scores, state_s_polls, BURN_IN, s)
+        generate_plot(state_scores, state_s_polls, BURN_IN, s, save=True)
         i += 1
 
     week = 0

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 START_DATE = dt.date(2016, 5, 1)
 ELECTION_DATE = dt.date(2016, 11, 8)
 
-def generate_plot(state_scores, this_state_polls, burn_in, state_name):
+def generate_plot(state_scores, this_state_polls, burn_in, state_name, save=False):
 
     medians=[]
     x_coord=[]
@@ -43,5 +43,6 @@ def generate_plot(state_scores, this_state_polls, burn_in, state_name):
     plt.ylabel('Pr(Clinton wins)'+state_name)
     plt.plot(x_coord,medians)
 
-    plt.savefig('time_plots/' + state_name.replace(" ", "_") + '.png', dpi=300)
-    plt.clf()
+    if save is True:
+        plt.savefig('time_plots/' + state_name.replace(" ", "_") + '.png', dpi=300)
+        plt.clf()
