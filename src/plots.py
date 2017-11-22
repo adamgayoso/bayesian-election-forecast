@@ -1,14 +1,12 @@
 # %load plots.py
 import pandas as pd
 import numpy as np
-import edward as ed
-import tensorflow as tf
 import datetime as dt
 import random
 from scipy import stats
-#from ggplot import *
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+import collections
 plt.style.use('ggplot')
 
 START_DATE = dt.date(2016, 5, 1)
@@ -82,3 +80,22 @@ def generate_undecided_plot(undecided_table, state_index, state_name, mean_w, me
         plt.savefig('../plots/undecided_plots/' +
                     state_name.replace(" ", "_") + '.png', dpi=300)
         plt.clf()
+
+
+def generate_simulation_hist(outcomes, clinton_wins):
+    x = np.unique(outcomes)
+    freq = collections.Counter(outcomes)
+    height = [freq[s] for s in x]
+    c = []
+    for out in x:
+        if out > 270:
+            c.append('blue')
+        else:
+            c.append('red')
+    plt.figure(figsize=(15,7))
+    plt.bar(x, height, color=c)
+    p = str(clinton_wins / 10000.0)
+    plt.title('Probability Clinton wins = ' + p)
+    plt.xlabel('Electoral Votes')
+    plt.ylabel('Frequency')
+    plt.show()
