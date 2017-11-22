@@ -115,4 +115,4 @@ def get_polls(end_date):
 if __name__ == '__main__':
 
     polls = get_polls(ELECTION_DATE)
-    polls.to_csv('data/all_polls_2016.csv')
+    polls.to_csv('../data/all_polls_2016.csv')

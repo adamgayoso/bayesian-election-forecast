@@ -87,7 +87,7 @@ def process_2012_polls():
         series: population weight of each state
         series: electoral votes for each state
     """
-    data_2012 = pd.read_csv('data/2012.csv', index_col=-3).sort_index()
+    data_2012 = pd.read_csv('../data/2012.csv', index_col=-3).sort_index()
     new_index = pd.Series(data_2012.index.values).str.lower(
     ).replace({'d.c.': 'district of columbia'})
     data_2012.index = new_index
