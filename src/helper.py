@@ -131,7 +131,7 @@ def predict_scores(qmu_as, qmu_bs, E_day, w, b, var=0.25):
     e = np.random.multivariate_normal(
         np.zeros(n_states), cov=sigma_poll_error, size=n_samples)
 
-    #Logistic-Normal Transformation
+    # Logistic-Normal Transformation
     exp_e = expit(e)
 
     for day in range(E_day + 1):
@@ -139,10 +139,25 @@ def predict_scores(qmu_as, qmu_bs, E_day, w, b, var=0.25):
         und_c = exp_e * und
         if day != E_day:
             p = expit(qmu_as[day][:, np.newaxis] + qmu_bs[day_2_week[day]])
-            predicted_scores.append((p + und_c) / (1 / (1 - und)))
+            predicted_scores.append(p * (1 - und) + und_c)
         else:
             p = expit(qmu_bs[day_2_week[E_day]])
-            predicted_scores.append((p + und_c) / (1 / (1 - und)))
+            predicted_scores.append(p * (1 - und) + und_c)
 
     # Days by samples by state
     return np.array(predicted_scores)
+
+
+def get_brier_score(e_day_scores, state_polls):
+
+    results_2016 = pd.read_csv('../data/2016_results.csv', index_col=0, header=None)
+    results_2016 = results_2016.loc[state_polls.state.unique()].as_matrix().flatten()
+
+    probabilities = np.mean(e_day_scores > 0.5, axis=0)
+
+    brier_score = np.sum(np.square(results_2016 - probabilities))
+    brier_score /= len(results_2016)
+
+    return brier_score
+
+

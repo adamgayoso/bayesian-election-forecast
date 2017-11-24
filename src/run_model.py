@@ -26,9 +26,10 @@ def main():
     state_polls, national_polls = prepare_polls(polls, up_to_t)
 
     # Get prior information from 2012 election
-    prior_diff_score, state_w, ev_states = process_2012_polls()
+    prior_diff_score, state_weights, ev_states = process_2012_polls()
     prior_diff_score = prior_diff_score[state_polls.state.unique()]
-    state_weights = state_w[state_polls.state.unique()].as_matrix()
+    state_weights = state_weights[state_polls.state.unique()].as_matrix()
+    state_weights_np = state_weights
     state_weights = tf.convert_to_tensor(state_weights, dtype=tf.float32)
     ev_states = ev_states[state_polls.state.unique()].as_matrix()
 
@@ -103,7 +104,7 @@ def main():
     state_logits = mu_b_state + mu_a_state
 
     # NATIONAL POLLS
-    alpha_mean = (state_w * prior_diff_score).sum().astype(np.float32)
+    alpha_mean = (state_weights_np * prior_diff_score).sum().astype(np.float32)
     alpha = Normal(loc=alpha_mean, scale=0.2)
     nat_ind = national_polls[['week_index', 'date_index']].as_matrix()
     # Due to list in reverse
@@ -185,6 +186,7 @@ def main():
 
     # Predict Scores
     predicted_scores = predict_scores(qmu_as, qmu_bs, E_day, mean_w, mean_b, var=2)
+    general_score = np.sum(state_weights_np * predicted_scores, axis=2)
 
     # Apply burn in
     clean_scores = predicted_scores[:, BURN_IN:, :]
