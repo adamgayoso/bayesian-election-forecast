@@ -1,11 +1,6 @@
-# %load plots.py
-import pandas as pd
 import numpy as np
 import datetime as dt
-import random
-from scipy import stats
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
 import collections
 plt.style.use('ggplot')
 
@@ -13,27 +8,21 @@ START_DATE = dt.date(2016, 5, 1)
 ELECTION_DATE = dt.date(2016, 11, 8)
 
 
-def generate_time_plot(state_scores, state_s_polls, burn_in, state_name, prior, save=False):
+def generate_time_plot(state_scores, state_s_polls, burn_in, state_name, prior,
+                       save=False):
+    """Generates a time plot
 
+    Args:
+        states_scores (np.array): states by samples
+        state_s_polls (pd.Dataframe): polls for state s
+        burn_in (int): number of samples to throw out
+        state_name (str): name of the state
+        prior (float): prior on election day
+        save (bool, optional): whether to save the plot
+    """
     n_days = state_scores.shape[0]
     x_coord = np.arange(n_days)
-    # x_coord_date.append()
-    # median of posterior - thick blue
-    # light-blue region = 90% credible interval
-    # thin-blue lines = 100 draws from posterior
-
-    # samples_chosen = 100
-    # sample_size = 10000
-    # my_randoms = random.sample(range(burn_in, sample_size), samples_chosen)
     burn_state_scores = state_scores[:, burn_in:]
-
-    # plot thin blue lines (100 posterior draws)
-    # for r in my_randoms:
-    #     y_coord=[]
-    #     for day in range(0,n_days):
-    #         y_coord.append(state_scores[day][r])
-    #     plt.plot(x_coord,y_coord,linewidth=0.05)
-    # plot 90% confidence interval
 
     # plot dots (polls)
     poll_date = state_s_polls.date_index.as_matrix()
@@ -62,8 +51,18 @@ def generate_time_plot(state_scores, state_s_polls, burn_in, state_name, prior, 
         plt.clf()
 
 
-def generate_undecided_plot(undecided_table, state_index, state_name, mean_w, mean_b, E_day, save=False):
+def generate_undecided_plot(undecided_table, state_index, state_name, mean_w,
+                            mean_b, E_day, save=False):
+    """Generates undecided plot
 
+    Args:
+        undecided_table (np.array): # of und for state, day
+        state_index (int): index of state
+        state_name (str): name of state
+        mean_w (np.array): slope for und line
+        mean_b (np.array): intercept
+        E_day (int): index for election day
+    """
     s = state_index
     state_name = state_name.title()
     date_range = np.arange(E_day)
@@ -83,6 +82,12 @@ def generate_undecided_plot(undecided_table, state_index, state_name, mean_w, me
 
 
 def generate_simulation_hist(outcomes, clinton_wins):
+    """Generates historgram for election simulations
+
+    Args:
+        outcomes (list of float): electoral college outcomes
+        clinton_wins (int): number of times clinton won ec
+    """
     x = np.unique(outcomes)
     freq = collections.Counter(outcomes)
     height = [freq[s] for s in x]
@@ -92,7 +97,7 @@ def generate_simulation_hist(outcomes, clinton_wins):
             c.append('blue')
         else:
             c.append('red')
-    plt.figure(figsize=(15,7))
+    plt.figure(figsize=(15, 7))
     plt.bar(x, height, color=c)
     p = str(clinton_wins / 10000.0)
     plt.title('Probability Clinton wins = ' + p)

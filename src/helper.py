@@ -6,7 +6,16 @@ from scipy.stats import binom
 
 
 def covariance_matrix(variance, correlation, d):
+    """Creates a covariance matrix
 
+    Args:
+        variance (float): value of diagonal
+        correlation (float): correlation between variables
+        d (int): dimension of square matrix
+
+    Returns:
+        np.array: d by d covariance matrix
+    """
     cm = variance * correlation * np.ones((d, d))
     cm += (variance - variance * correlation) * np.identity(d)
 
@@ -81,6 +90,8 @@ def process_2012_polls():
     """Process the 2012 election results
         Code modified from:
         https://github.com/fonnesbeck/election_pycast/blob/master/Election2016.ipynb
+        Data from:
+        https://github.com/pkremp/polls
 
     Returns:
         series: difference between state vote and national vote for 2012
@@ -148,10 +159,19 @@ def predict_scores(qmu_as, qmu_bs, E_day, w, b, var=0.25):
     return np.array(predicted_scores)
 
 
-def get_brier_score(e_day_scores, state_polls):
+def get_brier_score(e_day_scores, states):
+    """Calculates brier score for election day results
+    Args:
+        e_day_scores (np.array): samples by states
+        states (pd.Series): unique states in state_polls
 
-    results_2016 = pd.read_csv('../data/2016_results.csv', index_col=0, header=None)
-    results_2016 = results_2016.loc[state_polls.state.unique()].as_matrix().flatten()
+    Returns:
+        float: brier score
+    """
+
+    results_2016 = pd.read_csv(
+        '../data/2016_results.csv', index_col=0, header=None)
+    results_2016 = results_2016.loc[states].as_matrix().flatten()
 
     probabilities = np.mean(e_day_scores > 0.5, axis=0)
 
@@ -159,5 +179,3 @@ def get_brier_score(e_day_scores, state_polls):
     brier_score /= len(results_2016)
 
     return brier_score
-
-
