@@ -105,8 +105,8 @@ def generate_simulation_hist(e_day_results, general_score, ev_states):
         else:
             if general_score > 0.5:
                 clinton_loses_ec_but_wins += 1
-
-    outcomes.append(outcome)
+        outcomes.append(outcome)
+    clinton_loses_ec_but_wins /= 10000
     x = np.unique(outcomes)
     freq = collections.Counter(outcomes)
     height = [freq[s] for s in x]
