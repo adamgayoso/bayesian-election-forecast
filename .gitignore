@@ -10,4 +10,5 @@ __pycache__/
 
 final-project/\.ipynb_checkpoints/
 
-final-project/images/
+
+\.cache/v/flake8/

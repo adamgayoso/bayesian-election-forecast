@@ -81,13 +81,32 @@ def generate_undecided_plot(undecided_table, state_index, state_name, mean_w,
         plt.clf()
 
 
-def generate_simulation_hist(outcomes, clinton_wins):
+def generate_simulation_hist(e_day_results, general_score, ev_states):
     """Generates historgram for election simulations
 
     Args:
-        outcomes (list of float): electoral college outcomes
-        clinton_wins (int): number of times clinton won ec
+        e_day_results (np.array): samples by state
+        general_score (np.array): samples by state for general election
+        ev_states (np.array): electoral votes for each state in order
+
+    Returns:
+        clinton_loses_ec_but_wins (int): number of times loses ec, wins pop
     """
+
+    outcomes = []
+    clinton_wins = 0
+    clinton_loses_ec_but_wins = 0
+    for i in range(10000):
+        draw = np.random.randint(0, e_day_results.shape[0])
+        outcome = e_day_results[draw]
+        outcome = np.dot(outcome >= 0.5, ev_states)
+        if outcome > 270:
+            clinton_wins += 1
+        else:
+            if general_score > 0.5:
+                clinton_loses_ec_but_wins += 1
+
+    outcomes.append(outcome)
     x = np.unique(outcomes)
     freq = collections.Counter(outcomes)
     height = [freq[s] for s in x]
@@ -104,3 +123,5 @@ def generate_simulation_hist(outcomes, clinton_wins):
     plt.xlabel('Electoral Votes')
     plt.ylabel('Frequency')
     plt.show()
+
+    return clinton_loses_ec_but_wins
