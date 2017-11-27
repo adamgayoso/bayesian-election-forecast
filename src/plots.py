@@ -103,7 +103,7 @@ def generate_simulation_hist(e_day_results, general_score, ev_states):
         if outcome > 270:
             clinton_wins += 1
         else:
-            if general_score > 0.5:
+            if general_score[draw] > 0.5:
                 clinton_loses_ec_but_wins += 1
         outcomes.append(outcome)
     clinton_loses_ec_but_wins /= 10000
