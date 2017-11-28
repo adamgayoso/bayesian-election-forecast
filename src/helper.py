@@ -22,24 +22,6 @@ def covariance_matrix(variance, correlation, d):
     return cm
 
 
-def _sample_n(self, n, seed=None):
-    # define Python function which returns samples as a Numpy array
-    def np_sample(N, logits):
-        p = 1 / (1 + np.exp(-1 * logits))
-        return binom.rvs(N, p, random_state=seed).astype(np.float32)
-
-    # wrap python function as tensorflow op
-    # print(self.total_count)
-    val = tf.py_func(np_sample, [self.total_count,
-                                 self.logits], [tf.float32])[0]
-    # set shape from unknown shape
-    batch_event_shape = self.batch_shape.concatenate(self.event_shape)
-    shape = tf.concat(
-        [tf.expand_dims(n, 0), tf.convert_to_tensor(batch_event_shape)], 0)
-    val = tf.reshape(val, shape)
-    return val
-
-
 def prepare_polls(polls, t_last):
     """Prepare the polling data by creating an index for pollsters and dates
         Dates start on day 0
@@ -179,3 +161,58 @@ def get_brier_score(e_day_scores, states):
     brier_score /= len(results_2016)
 
     return brier_score
+
+
+def assemble_polls(alpha, mu_bs, mu_as, mu_a_buffer, mu_c, national_polls,
+                   state_polls, state_weights, E_day, E_week):
+
+    mu_b_tf = tf.stack(mu_bs)
+    mu_a_tf = tf.stack(mu_as)
+    mu_a_tf = tf.concat([mu_a_buffer, mu_a_tf], axis=0)
+    # Due to list in reverse
+    mu_a_state = tf.gather(
+        mu_a_tf, (E_day - state_polls.date_index).as_matrix())
+    state_ind = state_polls[['week_index', 'state_index']].as_matrix()
+    # Due to list in reverse
+    state_ind[:, 0] = E_week - state_ind[:, 0]
+
+    mu_b_state = tf.gather_nd(mu_b_tf, state_ind)
+    mu_c_state = tf.gather(mu_c, state_polls.pollster_index)
+
+    state_logits = mu_b_state + mu_a_state
+
+    nat_ind = national_polls[['week_index', 'date_index']].as_matrix()
+    # Due to list in reverse
+    nat_ind[:, 0] = E_week - nat_ind[:, 0]
+    nat_ind[:, 1] = E_day - nat_ind[:, 1]
+    mu_b_nat = tf.gather(mu_b_tf, nat_ind[:, 0])
+    mu_a_nat = tf.expand_dims(tf.gather(mu_a_tf, nat_ind[:, 1]), 1)
+    # expit
+    nat_expits = 1 / (1 + tf.exp(-1 * (mu_a_nat + mu_b_nat)))
+    # logit
+    nat_weigh_avg = tf.multiply(state_weights, nat_expits)
+    nat_weigh_avg = -tf.log((1 / (tf.reduce_sum(nat_weigh_avg, axis=1))) - 1)
+    nat_weigh_avg += alpha
+    mu_c_nat = tf.gather(mu_c, national_polls.pollster_index)
+
+    final_logits = tf.concat([state_logits, nat_weigh_avg], axis=0)
+    final_logits += tf.concat([mu_c_state, mu_c_nat], axis=0)
+
+    return final_logits
+
+
+def extract_results(mu_as, mu_bs, mu_c, inference):
+
+    qmu_bs = []
+    for b in mu_bs:
+        qmu_bs.append(inference.latent_vars[b].params.eval())
+    qmu_bs = list(reversed(qmu_bs))
+
+    qmu_as = []
+    for a in mu_as:
+        qmu_as.append(inference.latent_vars[a].params.eval())
+    qmu_as = list(reversed(qmu_as))
+
+    qmu_c = inference.latent_vars[mu_c].params.eval()
+
+    return qmu_as, qmu_bs, qmu_c
