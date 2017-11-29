@@ -3,6 +3,7 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import collections
 import pandas as pd
+from helper import predict_scores
 plt.style.use('ggplot')
 
 START_DATE = dt.date(2016, 5, 1)
@@ -82,7 +83,7 @@ def generate_undecided_plot(undecided_table, state_index, state_name, mean_w,
         plt.clf()
 
 
-def generate_simulation_hist(e_day_results, general_score, ev_states):
+def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True):
     """Generates historgram for election simulations
 
     Args:
@@ -108,24 +109,26 @@ def generate_simulation_hist(e_day_results, general_score, ev_states):
                 clinton_loses_ec_but_wins += 1
         outcomes.append(outcome)
     clinton_loses_ec_but_wins /= 10000
-    x = np.unique(outcomes)
-    freq = collections.Counter(outcomes)
-    height = [freq[s] for s in x]
-    c = []
-    for out in x:
-        if out > 270:
-            c.append('blue')
-        else:
-            c.append('red')
-    plt.figure(figsize=(15, 7))
-    plt.bar(x, height, color=c)
     p = str(clinton_wins / 10000.0)
-    plt.title('Probability Clinton wins = ' + p)
-    plt.xlabel('Electoral Votes')
-    plt.ylabel('Frequency')
-    plt.show()
 
-    return clinton_loses_ec_but_wins
+    if graph is True:
+        x = np.unique(outcomes)
+        freq = collections.Counter(outcomes)
+        height = [freq[s] for s in x]
+        c = []
+        for out in x:
+            if out > 270:
+                c.append('blue')
+            else:
+                c.append('red')
+        plt.figure(figsize=(15, 7))
+        plt.bar(x, height, color=c)
+        plt.title('Probability Clinton wins = ' + p)
+        plt.xlabel('Electoral Votes')
+        plt.ylabel('Frequency')
+        plt.show()
+
+    return clinton_loses_ec_but_wins, p
 
 
 def generate_state_probs(states, e_day_scores):
@@ -150,4 +153,27 @@ def generate_state_probs(states, e_day_scores):
     plt.yticks(np.arange(51), y[argsort])
     plt.title("State Probabilities")
     plt.xlabel("Probability Clinton Wins State")
+    plt.show()
+
+
+def variance_test(qmu_as, qmu_bs, E_day, mean_w, mean_b, state_weights_np,
+                  ev_states, BURN_IN):
+
+    plt.figure(figsize=(10, 8))
+    var = [0.1, 0.4, 0.7, 1.0, 1.3, 1.6, 1.9, 2.2, 2.5, 2.8, 3.1]
+    for v in var:
+        predicted_scores = predict_scores(
+            qmu_as, qmu_bs, E_day, mean_w, mean_b, var=v)
+        general_score = np.sum(state_weights_np * predicted_scores, axis=2)
+        clean_scores = predicted_scores[:, BURN_IN:, :]
+        e_day_results = clean_scores[-1, :, :]
+        e_day_general = general_score[-1, BURN_IN:]
+
+        clinton_loses_ec_but_wins, clinton_wins = generate_simulation_hist(
+            e_day_results, e_day_general, ev_states, graph=False)
+        plt.scatter(v, clinton_wins, s=50)
+
+    plt.title("Changing the variance of undecided voters")
+    plt.xlabel("Variance of Logit Normal")
+    plt.ylabel("Probability Clinton Wins")
     plt.show()

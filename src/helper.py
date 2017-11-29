@@ -253,3 +253,4 @@ def extract_results(mu_as, mu_bs, mu_c, inference):
     qmu_c = inference.latent_vars[mu_c].params.eval()
 
     return qmu_as, qmu_bs, qmu_c
+
