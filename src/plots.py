@@ -2,6 +2,7 @@ import numpy as np
 import datetime as dt
 import matplotlib.pyplot as plt
 import collections
+import pandas as pd
 plt.style.use('ggplot')
 
 START_DATE = dt.date(2016, 5, 1)
@@ -125,3 +126,28 @@ def generate_simulation_hist(e_day_results, general_score, ev_states):
     plt.show()
 
     return clinton_loses_ec_but_wins
+
+
+def generate_state_probs(states, e_day_scores):
+
+    results_2016 = pd.read_csv(
+        '../data/2016_results.csv', index_col=0, header=None)
+    results_2016 = results_2016.loc[states].as_matrix().flatten()
+
+    probabilities = np.mean(e_day_scores > 0.5, axis=0)
+    argsort = np.argsort(probabilities)
+
+    c = []
+    for p in probabilities[argsort]:
+        if p > 0.5:
+            c.append('blue')
+        else:
+            c.append('red')
+
+    y = np.array(states)
+    plt.figure(figsize=(7, 10))
+    plt.scatter(probabilities[argsort], np.arange(51), color=c)
+    plt.yticks(np.arange(51), y[argsort])
+    plt.title("State Probabilities")
+    plt.xlabel("Probability Clinton Wins State")
+    plt.show()

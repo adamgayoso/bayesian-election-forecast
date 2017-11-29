@@ -141,7 +141,7 @@ def predict_scores(qmu_as, qmu_bs, E_day, w, b, var=0.25):
     return np.array(predicted_scores)
 
 
-def get_brier_score(e_day_scores, states):
+def get_brier_score(e_day_scores, states, weighted=False, ev_states=None):
     """Calculates brier score for election day results
     Args:
         e_day_scores (np.array): samples by states
@@ -157,13 +157,51 @@ def get_brier_score(e_day_scores, states):
 
     probabilities = np.mean(e_day_scores > 0.5, axis=0)
 
-    brier_score = np.sum(np.square(results_2016 - probabilities))
-    brier_score /= len(results_2016)
+    if weighted is True:
+        brier_score = np.sum(ev_states * np.square(results_2016 - probabilities))
+        brier_score /= np.sum(ev_states)
+
+    else:
+        brier_score = np.sum(np.square(results_2016 - probabilities))
+        brier_score /= len(results_2016)
 
     return brier_score
 
 
-def assemble_polls(alpha, mu_bs, mu_as, mu_a_buffer, mu_c, national_polls,
+def get_log_score(e_day_scores, states, weighted=False, ev_states=None):
+    results_2016 = pd.read_csv(
+        '../data/2016_results.csv', index_col=0, header=None)
+    results_2016 = results_2016.loc[states].as_matrix().flatten()
+
+    probabilities = np.mean(e_day_scores > 0.5, axis=0)
+    probabilities[np.where(probabilities == 0)[0]] = 0.0001
+
+    diff = np.square(results_2016 - probabilities)
+
+    if weighted is True:
+        log_score = np.sum(
+            ev_states * np.ma.log(diff).filled(0))
+        log_score /= np.sum(ev_states)
+    else:
+        log_score = np.sum(np.ma.log(diff).filled(0))
+        log_score /= len(results_2016)
+
+    return log_score
+
+
+def get_correct(e_day_scores, states):
+    results_2016 = pd.read_csv(
+        '../data/2016_results.csv', index_col=0, header=None)
+    results_2016 = results_2016.loc[states].as_matrix().flatten()
+
+    probabilities = np.mean(e_day_scores > 0.5, axis=0)
+    probabilities = np.around(probabilities)
+    correct = np.sum(probabilities == results_2016)
+
+    return correct
+
+
+def assemble_polls(mu_bs, mu_as, mu_a_buffer, mu_c, national_polls,
                    state_polls, state_weights, E_day, E_week):
 
     mu_b_tf = tf.stack(mu_bs)
@@ -192,7 +230,6 @@ def assemble_polls(alpha, mu_bs, mu_as, mu_a_buffer, mu_c, national_polls,
     # logit
     nat_weigh_avg = tf.multiply(state_weights, nat_expits)
     nat_weigh_avg = -tf.log((1 / (tf.reduce_sum(nat_weigh_avg, axis=1))) - 1)
-    nat_weigh_avg += alpha
     mu_c_nat = tf.gather(mu_c, national_polls.pollster_index)
 
     final_logits = tf.concat([state_logits, nat_weigh_avg], axis=0)

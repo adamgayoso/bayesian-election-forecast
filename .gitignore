@@ -12,3 +12,5 @@ final-project/\.ipynb_checkpoints/
 
 
 \.cache/v/flake8/
+
+*.edu
