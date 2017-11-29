@@ -168,27 +168,6 @@ def get_brier_score(e_day_scores, states, weighted=False, ev_states=None):
     return brier_score
 
 
-def get_log_score(e_day_scores, states, weighted=False, ev_states=None):
-    results_2016 = pd.read_csv(
-        '../data/2016_results.csv', index_col=0, header=None)
-    results_2016 = results_2016.loc[states].as_matrix().flatten()
-
-    probabilities = np.mean(e_day_scores > 0.5, axis=0)
-    probabilities[np.where(probabilities == 0)[0]] = 0.0001
-
-    diff = np.square(results_2016 - probabilities)
-
-    if weighted is True:
-        log_score = np.sum(
-            ev_states * np.ma.log(diff).filled(0))
-        log_score /= np.sum(ev_states)
-    else:
-        log_score = np.sum(np.ma.log(diff).filled(0))
-        log_score /= len(results_2016)
-
-    return log_score
-
-
 def get_correct(e_day_scores, states):
     results_2016 = pd.read_csv(
         '../data/2016_results.csv', index_col=0, header=None)
@@ -196,8 +175,11 @@ def get_correct(e_day_scores, states):
 
     probabilities = np.mean(e_day_scores > 0.5, axis=0)
     probabilities = np.around(probabilities)
-    correct = np.sum(probabilities == results_2016)
-
+    correct = probabilities == results_2016
+    for i in range(len(correct)):
+        if correct[i] == 0:
+            print(states[i])
+    correct = np.sum(correct)
     return correct
 
 

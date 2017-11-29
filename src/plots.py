@@ -3,7 +3,7 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import collections
 import pandas as pd
-from helper import predict_scores
+from helper import predict_scores, get_brier_score
 plt.style.use('ggplot')
 
 START_DATE = dt.date(2016, 5, 1)
@@ -36,7 +36,8 @@ def generate_time_plot(state_scores, state_s_polls, burn_in, state_name, prior,
     uppers = np.percentile(burn_state_scores, 95, axis=1)
     lowers = np.percentile(burn_state_scores, 5, axis=1)
 
-    plt.title('Clinton Vote Share over Time for ' + state_name.title())
+    plt.title('Clinton Vote Share over Time for {0}, P(Win) = {1:.4f}'.format(
+        state_name.title(), np.mean(burn_state_scores[-1] > 0.5)), fontsize=11)
     plt.ylabel('Share of Two-Party Vote')
     plt.xlabel('Day')
     plt.plot(x_coord, medians, color='blue')
@@ -157,9 +158,10 @@ def generate_state_probs(states, e_day_scores):
 
 
 def variance_test(qmu_as, qmu_bs, E_day, mean_w, mean_b, state_weights_np,
-                  ev_states, BURN_IN):
+                  ev_states, states, BURN_IN):
 
-    plt.figure(figsize=(10, 8))
+    fig, ax1 = plt.subplots(figsize=(10, 8))
+    ax2 = ax1.twinx()
     var = [0.1, 0.4, 0.7, 1.0, 1.3, 1.6, 1.9, 2.2, 2.5, 2.8, 3.1]
     for v in var:
         predicted_scores = predict_scores(
@@ -171,9 +173,14 @@ def variance_test(qmu_as, qmu_bs, E_day, mean_w, mean_b, state_weights_np,
 
         clinton_loses_ec_but_wins, clinton_wins = generate_simulation_hist(
             e_day_results, e_day_general, ev_states, graph=False)
-        plt.scatter(v, clinton_wins, s=50)
+        ax1.scatter(v, clinton_wins, s=50, c='orange')
+        brier_score = get_brier_score(e_day_results, states)
+        ax2.scatter(v, brier_score, c="purple")
 
     plt.title("Changing the variance of undecided voters")
     plt.xlabel("Variance of Logit Normal")
-    plt.ylabel("Probability Clinton Wins")
+    ax1.set_ylabel("Probability Clinton Wins", color='orange')
+    ax1.tick_params('y', colors='orange')
+    ax2.set_ylabel("Evenly Weighted Brier Score", color='purple')
+    ax2.tick_params('y', colors='purple')
     plt.show()
