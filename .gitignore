@@ -1,8 +1,16 @@
 
 \.DS_Store
 
-src/
-
 bayesian_logistic_regression\.py
 
 __pycache__/
+
+*.pickle
+
+
+final-project/\.ipynb_checkpoints/
+
+
+\.cache/v/flake8/
+
+*.edu
