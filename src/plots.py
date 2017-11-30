@@ -48,6 +48,14 @@ def generate_time_plot(state_scores, state_s_polls, burn_in, state_name, prior,
     plt.axhline(y=0.5, color='black', linestyle='-')
     plt.axhline(y=prior, color='black', linestyle='--')
 
+    if state_name != 'general':
+        results_2016 = pd.read_csv(
+            '../data/2016_results.csv', index_col=0)
+        results_2016 = results_2016['dem_share_2p']
+        plt.axhline(y=results_2016[state_name], color='purple', linestyle='--')
+    else:
+        plt.axhline(y=0.511, color='purple', linestyle='--')
+
     if save is True:
         plt.savefig('../plots/time_plots/' +
                     state_name.replace(" ", "_") + '.png', dpi=300)
@@ -136,7 +144,8 @@ def generate_simulation_hist(e_day_results, general_score, ev_states,
 def generate_state_probs(states, e_day_scores):
 
     results_2016 = pd.read_csv(
-        '../data/2016_results.csv', index_col=0, header=None)
+        '../data/2016_results.csv', index_col=0)
+    results_2016 = results_2016['win']
     results_2016 = results_2016.loc[states].as_matrix().flatten()
 
     probabilities = np.mean(e_day_scores > 0.5, axis=0)
