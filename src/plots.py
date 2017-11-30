@@ -3,7 +3,8 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import collections
 import pandas as pd
-from helper import predict_scores
+from helper import predict_scores, get_brier_score
+from scipy.special import expit
 plt.style.use('ggplot')
 
 START_DATE = dt.date(2016, 5, 1)
@@ -36,7 +37,8 @@ def generate_time_plot(state_scores, state_s_polls, burn_in, state_name, prior,
     uppers = np.percentile(burn_state_scores, 95, axis=1)
     lowers = np.percentile(burn_state_scores, 5, axis=1)
 
-    plt.title('Clinton Vote Share over Time for ' + state_name.title())
+    plt.title('Clinton Vote Share over Time for {0}, P(Win) = {1:.4f}'.format(
+        state_name.title(), np.mean(burn_state_scores[-1] > 0.5)), fontsize=11)
     plt.ylabel('Share of Two-Party Vote')
     plt.xlabel('Day')
     plt.plot(x_coord, medians, color='blue')
@@ -46,6 +48,14 @@ def generate_time_plot(state_scores, state_s_polls, burn_in, state_name, prior,
                      interpolate=True, color='#33CEFF', alpha=.4)
     plt.axhline(y=0.5, color='black', linestyle='-')
     plt.axhline(y=prior, color='black', linestyle='--')
+
+    if state_name != 'general':
+        results_2016 = pd.read_csv(
+            '../data/2016_results.csv', index_col=0)
+        results_2016 = results_2016['dem_share_2p']
+        plt.axhline(y=results_2016[state_name], color='purple', linestyle=':')
+    else:
+        plt.axhline(y=0.511, color='purple', linestyle=':')
 
     if save is True:
         plt.savefig('../plots/time_plots/' +
@@ -83,12 +93,29 @@ def generate_undecided_plot(undecided_table, state_index, state_name, mean_w,
         plt.clf()
 
 
-def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True):
+def generate_house_effects_hist(qmu_c):
+
+    median = np.median(qmu_c, axis=0)
+    median = expit(median) - 0.5
+    blue = median[np.where(median >= 0)[0]]
+    red = median[np.where(median < 0)[0]]
+    bins = np.arange(-0.032, 0.032, 0.002)
+    plt.figure(figsize=(11, 7))
+    n, bins, pathces = plt.hist(blue, bins=bins, color='blue', alpha=0.7)
+    n, bins, pathces = plt.hist(red, bins=bins, color='red', alpha=0.7)
+    plt.xlabel('Approximate House Effects')
+    plt.ylabel('Number of Pollsters')
+    plt.title('House Effects')
+    plt.show()
+
+
+def generate_simulation_hist(e_day_results, general_score, ev_states,
+                             graph=True, sim=10000):
     """Generates historgram for election simulations
 
     Args:
         e_day_results (np.array): samples by state
-        general_score (np.array): samples by state for general election
+        general_score (np.array): samples by state for e_day general election
         ev_states (np.array): electoral votes for each state in order
 
     Returns:
@@ -98,7 +125,7 @@ def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True
     outcomes = []
     clinton_wins = 0
     clinton_loses_ec_but_wins = 0
-    for i in range(10000):
+    for i in range(sim):
         draw = np.random.randint(0, e_day_results.shape[0])
         outcome = e_day_results[draw]
         outcome = np.dot(outcome >= 0.5, ev_states)
@@ -108,8 +135,8 @@ def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True
             if general_score[draw] > 0.5:
                 clinton_loses_ec_but_wins += 1
         outcomes.append(outcome)
-    clinton_loses_ec_but_wins /= 10000
-    p = str(clinton_wins / 10000.0)
+    clinton_loses_ec_but_wins /= sim
+    p = str(clinton_wins / sim)
 
     if graph is True:
         x = np.unique(outcomes)
@@ -122,7 +149,7 @@ def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True
             else:
                 c.append('red')
         plt.figure(figsize=(15, 7))
-        plt.bar(x, height, color=c)
+        plt.bar(x, height, color=c, alpha=0.7)
         plt.title('Probability Clinton wins = ' + p)
         plt.xlabel('Electoral Votes')
         plt.ylabel('Frequency')
@@ -134,7 +161,8 @@ def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True
 def generate_state_probs(states, e_day_scores):
 
     results_2016 = pd.read_csv(
-        '../data/2016_results.csv', index_col=0, header=None)
+        '../data/2016_results.csv', index_col=0)
+    results_2016 = results_2016['win']
     results_2016 = results_2016.loc[states].as_matrix().flatten()
 
     probabilities = np.mean(e_day_scores > 0.5, axis=0)
@@ -157,9 +185,10 @@ def generate_state_probs(states, e_day_scores):
 
 
 def variance_test(qmu_as, qmu_bs, E_day, mean_w, mean_b, state_weights_np,
-                  ev_states, BURN_IN):
+                  ev_states, states, BURN_IN):
 
-    plt.figure(figsize=(10, 8))
+    fig, ax1 = plt.subplots(figsize=(10, 8))
+    ax2 = ax1.twinx()
     var = [0.1, 0.4, 0.7, 1.0, 1.3, 1.6, 1.9, 2.2, 2.5, 2.8, 3.1]
     for v in var:
         predicted_scores = predict_scores(
@@ -171,9 +200,15 @@ def variance_test(qmu_as, qmu_bs, E_day, mean_w, mean_b, state_weights_np,
 
         clinton_loses_ec_but_wins, clinton_wins = generate_simulation_hist(
             e_day_results, e_day_general, ev_states, graph=False)
-        plt.scatter(v, clinton_wins, s=50)
+        ax1.scatter(v, clinton_wins, s=50, c='orange')
+        brier_score = get_brier_score(e_day_results, states)
+        ax2.scatter(v, brier_score, c="purple")
 
     plt.title("Changing the variance of undecided voters")
     plt.xlabel("Variance of Logit Normal")
-    plt.ylabel("Probability Clinton Wins")
+    ax1.set_xlabel("Variance")
+    ax1.set_ylabel("Probability Clinton Wins", color='orange')
+    ax1.tick_params('y', colors='orange')
+    ax2.set_ylabel("Evenly Weighted Brier Score", color='purple')
+    ax2.tick_params('y', colors='purple')
     plt.show()
