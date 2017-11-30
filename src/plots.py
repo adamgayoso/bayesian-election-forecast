@@ -84,7 +84,8 @@ def generate_undecided_plot(undecided_table, state_index, state_name, mean_w,
         plt.clf()
 
 
-def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True):
+def generate_simulation_hist(e_day_results, general_score, ev_states,
+                             graph=True, sim=10000):
     """Generates historgram for election simulations
 
     Args:
@@ -99,7 +100,7 @@ def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True
     outcomes = []
     clinton_wins = 0
     clinton_loses_ec_but_wins = 0
-    for i in range(10000):
+    for i in range(sim):
         draw = np.random.randint(0, e_day_results.shape[0])
         outcome = e_day_results[draw]
         outcome = np.dot(outcome >= 0.5, ev_states)
@@ -109,8 +110,8 @@ def generate_simulation_hist(e_day_results, general_score, ev_states, graph=True
             if general_score[draw] > 0.5:
                 clinton_loses_ec_but_wins += 1
         outcomes.append(outcome)
-    clinton_loses_ec_but_wins /= 10000
-    p = str(clinton_wins / 10000.0)
+    clinton_loses_ec_but_wins /= sim
+    p = str(clinton_wins / sim)
 
     if graph is True:
         x = np.unique(outcomes)

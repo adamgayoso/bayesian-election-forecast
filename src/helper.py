@@ -158,7 +158,8 @@ def get_brier_score(e_day_scores, states, weighted=False, ev_states=None):
     probabilities = np.mean(e_day_scores > 0.5, axis=0)
 
     if weighted is True:
-        brier_score = np.sum(ev_states * np.square(results_2016 - probabilities))
+        brier_score = np.sum(
+            ev_states * np.square(results_2016 - probabilities))
         brier_score /= np.sum(ev_states)
 
     else:
@@ -168,7 +169,7 @@ def get_brier_score(e_day_scores, states, weighted=False, ev_states=None):
     return brier_score
 
 
-def get_correct(e_day_scores, states):
+def get_correct(e_day_scores, states, print=False):
     results_2016 = pd.read_csv(
         '../data/2016_results.csv', index_col=0, header=None)
     results_2016 = results_2016.loc[states].as_matrix().flatten()
@@ -176,11 +177,23 @@ def get_correct(e_day_scores, states):
     probabilities = np.mean(e_day_scores > 0.5, axis=0)
     probabilities = np.around(probabilities)
     correct = probabilities == results_2016
-    for i in range(len(correct)):
-        if correct[i] == 0:
-            print(states[i])
+    if print is True:
+        for i in range(len(correct)):
+            if correct[i] == 0:
+                print(states[i])
     correct = np.sum(correct)
     return correct
+
+
+def brier_test(e_day_results, states, ev_states):
+
+    brier_score = get_brier_score(e_day_results, states)
+    weighted_brier_score = get_brier_score(
+        e_day_results, states, weighted=True, ev_states=ev_states)
+    num_correct = get_correct(e_day_results, states)
+    print("Brier Score: {0:.4f}".format(brier_score))
+    print("EC Weighted Brier Score: {0:.4f}".format(weighted_brier_score))
+    print("Number Correct (Incl. DC): {0}".format(num_correct))
 
 
 def assemble_polls(mu_bs, mu_as, mu_a_buffer, mu_c, national_polls,
@@ -235,4 +248,3 @@ def extract_results(mu_as, mu_bs, mu_c, inference):
     qmu_c = inference.latent_vars[mu_c].params.eval()
 
     return qmu_as, qmu_bs, qmu_c
-
