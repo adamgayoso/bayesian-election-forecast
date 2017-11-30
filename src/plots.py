@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import collections
 import pandas as pd
 from helper import predict_scores, get_brier_score
+from scipy.special import expit
 plt.style.use('ggplot')
 
 START_DATE = dt.date(2016, 5, 1)
@@ -92,13 +93,29 @@ def generate_undecided_plot(undecided_table, state_index, state_name, mean_w,
         plt.clf()
 
 
+def generate_house_effects_hist(qmu_c):
+
+    median = np.median(qmu_c, axis=0)
+    median = expit(median) - 0.5
+    blue = median[np.where(median >= 0)[0]]
+    red = median[np.where(median < 0)[0]]
+    bins = np.arange(-0.032, 0.032, 0.002)
+    plt.figure(figsize=(11, 7))
+    n, bins, pathces = plt.hist(blue, bins=bins, color='blue', alpha=0.7)
+    n, bins, pathces = plt.hist(red, bins=bins, color='red', alpha=0.7)
+    plt.xlabel('Approximate House Effects')
+    plt.ylabel('Number of Pollsters')
+    plt.title('House Effects')
+    plt.show()
+
+
 def generate_simulation_hist(e_day_results, general_score, ev_states,
                              graph=True, sim=10000):
     """Generates historgram for election simulations
 
     Args:
         e_day_results (np.array): samples by state
-        general_score (np.array): samples by state for general election
+        general_score (np.array): samples by state for e_day general election
         ev_states (np.array): electoral votes for each state in order
 
     Returns:
@@ -132,7 +149,7 @@ def generate_simulation_hist(e_day_results, general_score, ev_states,
             else:
                 c.append('red')
         plt.figure(figsize=(15, 7))
-        plt.bar(x, height, color=c)
+        plt.bar(x, height, color=c, alpha=0.7)
         plt.title('Probability Clinton wins = ' + p)
         plt.xlabel('Electoral Votes')
         plt.ylabel('Frequency')
@@ -189,6 +206,7 @@ def variance_test(qmu_as, qmu_bs, E_day, mean_w, mean_b, state_weights_np,
 
     plt.title("Changing the variance of undecided voters")
     plt.xlabel("Variance of Logit Normal")
+    ax1.set_xlabel("Variance")
     ax1.set_ylabel("Probability Clinton Wins", color='orange')
     ax1.tick_params('y', colors='orange')
     ax2.set_ylabel("Evenly Weighted Brier Score", color='purple')
