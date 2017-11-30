@@ -171,7 +171,8 @@ def get_brier_score(e_day_scores, states, weighted=False, ev_states=None):
 
 def get_correct(e_day_scores, states, print=False):
     results_2016 = pd.read_csv(
-        '../data/2016_results.csv', index_col=0, header=None)
+        '../data/2016_results.csv', index_col=0)
+    results_2016 = results_2016['win']
     results_2016 = results_2016.loc[states].as_matrix().flatten()
 
     probabilities = np.mean(e_day_scores > 0.5, axis=0)
